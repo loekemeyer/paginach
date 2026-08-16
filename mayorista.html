@@ -1,0 +1,1408 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mayorista · Chef SRL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pedidos mayoristas de utensilios de cocina Chef SRL. Catálogo completo con precios exclusivos para clientes registrados." />
+    <meta property="og:title" content="Mayorista · Chef SRL" />
+    <meta property="og:description" content="Pedidos mayoristas de utensilios de cocina. Catálogo completo con precios exclusivos." />
+    <meta property="og:image" content="https://chefsrl.com/img/logo.png" />
+    <meta property="og:url" content="https://chefsrl.com/mayorista.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_AR" />
+
+    <!-- Preconnect: acelera DNS + TLS para Supabase y CDN -->
+    <link rel="preconnect" href="https://nkhzocgdpwtgrmwleihr.supabase.co" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/styles.css?v=2026-05-12-e">
+    <link rel="stylesheet" href="css/analisis-venta-cliente.css">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+  </head>
+
+  <body class="avc-customer-mode">
+    <header class="header">
+      <div class="logo">
+  <a href="index.html">
+    <img src="img/logo.png" alt="Chef" class="logo-img">
+  </a>
+</div>
+
+      <div class="header-center" id="headerCenter"></div>
+
+      <nav class="nav">
+        <!-- CENTRO: buscador + categorías + productos + pedido (desktop) -->
+        <div class="nav-center">
+          <input
+            id="navSearch"
+            class="nav-search"
+            type="search"
+            placeholder="Buscar…"
+            name="catalog_q"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            inputmode="search"
+            aria-autocomplete="none"
+            data-form-type="other"
+            list=""
+          >
+
+          <div class="dropdown-wrap">
+            <button type="button" id="categoriesBtn" class="nav-link">Categorías ▾</button>
+            <div id="categoriesMenu" class="dropdown-menu"></div>
+          </div>
+
+          <button type="button" class="nav-link" onclick="goToProductsTop()">Productos</button>
+
+          <button type="button" id="cartLink" class="nav-link nav-link-cart" onclick="showSection('carrito')">
+            <img id="cartIcon" class="cart-icon" src="img/cart-icon.png" alt="Carrito">
+            <span class="cart-link-text">
+              <span class="cart-link-line1">Enviá tu</span>
+              <span class="cart-link-line2">Pedido (<span id="cartCount">0</span>)</span>
+            </span>
+          </button>
+        </div>
+
+        <!-- ✅ MOBILE ICONS: Carrito + Perfil -->
+        <div id="mobileIcons" class="mobile-icons" aria-label="Accesos rápidos">
+          <button id="mobileCartBtn" class="micon-btn micon-cart" type="button" aria-label="Pedido">
+            <img class="micon-cart-img" src="img/cart-icon.png" alt="">
+            <span class="micon-cart-text">Pedido</span> (<span id="mobileCartCount">0</span>)
+          </button>
+
+          <button id="mobileProfileBtn" class="micon-btn micon-profile" type="button" aria-label="Perfil">
+            <img src="img/profile.jpg" alt="Perfil" class="profile-avatar">
+          </button>
+        </div>
+
+        <!-- DERECHA (desktop): CTA + Login o UserBox -->
+        <div class="nav-right">
+          <a
+            id="ctaCliente"
+            class="btn-quiero-cliente"
+            href="https://wa.me/541131181021?text=Quiero%20ser%20cliente"
+            target="_blank"
+            rel="noopener"
+          >
+            Quiero ser cliente
+          </a>
+
+          <a id="loginBtn" onclick="openLogin()">Iniciar sesión</a>
+
+          <div class="user-box" id="userBox" style="display:none;">
+
+  <!-- ✅ UN SOLO BOTÓN -->
+  <button id="userToggleBtn" class="user-toggle-btn" type="button" aria-expanded="false">
+  <span id="helloNavText" class="user-toggle-text">Hola!</span>
+  <img src="img/profile.jpg" alt="Perfil" class="profile-avatar">
+  <span class="user-toggle-caret">▾</span>
+</button>
+
+  <div class="user-menu" id="userMenu" aria-hidden="true">
+    <button id="menuMyOrders" class="user-menu-item" type="button" onclick="openProfile()">
+      <span class="user-menu-label">Mi perfil</span>
+    </button>
+    <button
+      id="menuNotifications"
+      class="user-menu-item user-menu-notif"
+      type="button"
+      style="display: none"
+      onclick="openNotificationsFromMenu()"
+    >
+      <span class="user-menu-label">Pedidos Clientes</span>
+      <span id="menuNotifBadge" class="menu-notif-badge" hidden>0</span>
+    </button>
+    <button class="user-menu-item" type="button" onclick="openDraftsFromMenu()">
+      <span class="user-menu-label">Pedidos sin Confirmar</span>
+    </button>
+    <button id="menuHistorial" class="user-menu-item" type="button" onclick="openHistorialFromMenu('hist')">
+      <span class="user-menu-label">Historial de Compras</span>
+    </button>
+    <button id="menuSugerencias" class="user-menu-item" type="button"
+      onclick="window.location.href='./sugerencias.html'">
+      <span class="user-menu-label">Sugerencia Compra x IA</span>
+    </button>
+    <button
+      id="menuAnalisis"
+      class="user-menu-item"
+      type="button"
+      onclick="openAnalisisFromMenu()"
+    >
+      <span class="user-menu-label">Análisis de tus compras</span>
+      <span class="user-menu-new-badge" aria-label="Nueva función">NUEVO</span>
+    </button>
+<!-- Accesos admin para features futuras (Carga/Promo Pedidos, Estado de Pedidos):
+<button class="user-menu-item" type="button" id="menuSubirPedido" style="display:none"
+  onclick="window.location.href='./carga-pedidos.html'">
+  Subir Pedido
+</button>
+<button class="user-menu-item" type="button" id="menuEstadoPedidos" style="display:none"
+  onclick="window.location.href='./admin.html#estado-pedidos'">
+  Estado de Pedidos
+</button>
+-->
+    <button class="user-menu-item" type="button" id="menuAdminPanel" style="display:none"
+      onclick="window.location.href='./admin.html'">
+      <span class="user-menu-label">Panel Admin</span>
+    </button>
+
+    <div class="user-menu-sep" role="separator" aria-hidden="true"></div>
+
+    <button class="user-menu-item danger" type="button" onclick="logout()">
+      <span class="user-menu-label">Cerrar sesión</span>
+    </button>
+  </div>
+</div>
+
+        </div>
+      </nav>
+    </header>
+
+    <!-- ✅ MOBILE USER MENU -->
+    <!-- ✅ MOBILE USER MENU -->
+<div class="user-menu mobile-user-menu" id="mobileUserMenu" aria-hidden="true">
+  <button class="user-menu-item" type="button" onclick="openProfile(); closeMobileUserMenu();">
+    <span class="user-menu-label">Mi perfil</span>
+  </button>
+
+  <button
+    id="menuNotificationsMobile"
+    class="user-menu-item user-menu-notif"
+    type="button"
+    style="display: none"
+    onclick="openNotificationsFromMenu(); closeMobileUserMenu();"
+  >
+    <span class="user-menu-label">Pedidos Clientes</span>
+    <span id="menuNotifBadgeMobile" class="menu-notif-badge" hidden>0</span>
+  </button>
+
+  <button class="user-menu-item" type="button" onclick="openDraftsFromMenu(); closeMobileUserMenu();">
+    <span class="user-menu-label">Pedidos sin Confirmar</span>
+  </button>
+
+  <button id="menuHistorialMobile" class="user-menu-item" type="button" onclick="openHistorialFromMenu('hist'); closeMobileUserMenu();">
+    <span class="user-menu-label">Historial de Compras</span>
+  </button>
+
+  <button id="menuSugerenciasMobile" class="user-menu-item" type="button" onclick="closeMobileUserMenu(); window.location.href='./sugerencias.html';">
+    <span class="user-menu-label">Sugerencia Compra x IA</span>
+  </button>
+
+  <button id="menuAnalisisMobile" class="user-menu-item" type="button" onclick="closeMobileUserMenu(); openAnalisisFromMenu();">
+    <span class="user-menu-label">Análisis de tus compras</span>
+    <span class="user-menu-new-badge" aria-label="Nueva función">NUEVO</span>
+  </button>
+
+  <div class="user-menu-sep" role="separator" aria-hidden="true"></div>
+
+  <button class="user-menu-item danger" type="button" onclick="logout(); closeMobileUserMenu();">
+    <span class="user-menu-label">Cerrar sesión</span>
+  </button>
+</div>
+
+    <!-- PRODUCTOS -->
+    <section id="productos" class="section active">
+      <div class="section-title-row">
+        <div></div>
+        <h2 class="section-title"></h2>
+        <div></div>
+      </div>
+
+      <!-- Botón para reabrir el carrusel cuando el usuario lo cerró -->
+      <button
+        type="button"
+        id="ncShowBtn"
+        class="nc-show-btn"
+        aria-label="Mostrar novedades"
+        hidden
+      >
+        <span aria-hidden="true">✨</span>
+        Mostrar novedades
+      </button>
+
+      <!-- ✨ NOVEDADES — carrusel productos NUEVO (auto-scroll, pausa al hover, flechas manuales) -->
+      <section
+        id="newProductsCarousel"
+        class="new-carousel"
+        aria-label="Novedades"
+        hidden
+      >
+        <header class="new-carousel-head">
+          <div class="new-carousel-title">
+            <span class="new-carousel-spark" aria-hidden="true">✨</span>
+            <h3>Novedades</h3>
+            <span class="new-carousel-sub">Productos recién llegados</span>
+          </div>
+          <button
+            type="button"
+            id="ncCloseBtn"
+            class="nc-close-btn"
+            aria-label="Ocultar novedades"
+          >
+            Ocultar
+          </button>
+        </header>
+        <button
+          type="button"
+          class="ncn-btn ncn-prev"
+          id="ncnPrev"
+          aria-label="Anterior"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="ncn-btn ncn-next"
+          id="ncnNext"
+          aria-label="Siguiente"
+        >
+          ›
+        </button>
+        <div class="new-carousel-viewport">
+          <div
+            class="new-carousel-track"
+            id="newCarouselTrack"
+            role="list"
+          ></div>
+        </div>
+      </section>
+
+      <!-- Aviso descuento por volumen — debajo del carrusel Novedades / botón Mostrar -->
+      <div class="right-note right-note--belowcarousel" id="customerNote"></div>
+
+      <div class="products-layout">
+        <aside class="categories-sidebar" id="categoriesSidebar">
+          <div class="sidebar-title">Categorías</div>
+          <div id="categoriesSidebarList" class="sidebar-list"></div>
+        </aside>
+
+        <main class="products-main">
+          <div class="sort-row">
+            <!-- DESKTOP: BOTONES -->
+            <div id="desktopSortButtons" class="desktop-sort-buttons" aria-label="Ordenar por">
+              <button type="button" id="btnFilterAssortment" class="ds-btn ds-filter ds-assortment">
+                <span class="assortment-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2.8l2.85 5.77 6.37.93-4.61 4.49 1.09 6.34L12 17.32 6.3 20.33l1.09-6.34L2.78 9.5l6.37-.93L12 2.8z"></path>
+                  </svg>
+                </span>
+                <span>Mi surtido</span>
+              </button>
+              <button type="button" id="btnFilterNew" class="ds-btn ds-filter">Nuevos
+              </button>
+              <!-- Dropdown "Filtrar por…" con sort options (Chrome+Win dark-mode safe) -->
+              <div id="sortDropdownWrap" class="sort-dd-wrap">
+                <button
+                  type="button"
+                  id="sortDropdownTrigger"
+                  class="sort-dd-trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                >
+                  <span class="sort-dd-label">Filtrar por…</span>
+                  <span class="sort-dd-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div
+                  id="sortDropdownPopup"
+                  class="sort-dd-popup"
+                  role="listbox"
+                  hidden
+                >
+                  <div class="sort-dd-header" aria-hidden="true">Filtrar por</div>
+                  <button type="button" class="sort-dd-option" data-value="category" data-label="Categorías">
+                    Categorías
+                  </button>
+                  <button type="button" class="sort-dd-option" data-value="bestsellers" data-label="Más vendidos">
+                    Más vendidos
+                  </button>
+                  <button type="button" class="sort-dd-option" data-value="price_desc" data-label="Mayor a menor precio">
+                    Mayor a menor precio
+                  </button>
+                  <button type="button" class="sort-dd-option" data-value="price_asc" data-label="Menor a mayor precio">
+                    Menor a mayor precio
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- SELECT (Fallback) -->
+            <div class="sort-wrap">
+              <select id="sortSelect" class="sort-select" aria-label="Ordenar por">
+                <option value="category" selected>Categorías</option>
+                <option value="bestsellers">Más Vendidos</option>
+                <option value="price_desc">Mayor precio por categoría</option>
+                <option value="price_asc">Menor precio por categoría</option>
+              </select>
+            </div>
+            
+          </div>
+<div id="assortmentBanner" class="assortment-banner" style="display:none;">
+      Mostrando tu surtido habitual (últimos 18 meses)
+      </div>
+          <!-- ✅ Overlay filtros (Surtido + Ordenar por — sin categorías) -->
+          <div id="filtersOverlay" class="filters-overlay" aria-hidden="true">
+            <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Filtros">
+              <div class="filters-head">
+                <div class="filters-title">Filtros</div>
+                <button id="filtersCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
+              </div>
+
+              <div id="filtersGrid" class="filters-grid"></div>
+
+              <div class="filters-actions">
+                <button id="filtersApplyBtn" type="button" class="filters-apply">Aplicar filtros</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ✅ Overlay categorías (separado del de filtros — bottom-sheet propio) -->
+          <div id="categoriasOverlay" class="filters-overlay" aria-hidden="true">
+            <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Categorías">
+              <div class="filters-head">
+                <div class="filters-title">Categorías</div>
+                <button id="categoriasCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
+              </div>
+
+              <div id="categoriasGrid" class="filters-grid"></div>
+
+              <div class="filters-actions">
+                <button id="categoriasApplyBtn" type="button" class="filters-apply">Aplicar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= MOBILE PRODUCTS BAR ================= -->
+           <div class="mobile-products-bar" id="mobileProductsBar">
+            <div class="mpb-search">
+              <span class="mpb-ico" aria-hidden="true">
+                
+      <!-- Search SVG -->
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </span>
+
+    <input
+      id="mobileSearch"
+      class="mpb-input"
+      type="search"
+      placeholder="Buscar…"
+      autocomplete="off"
+      spellcheck="false"
+    />
+  </div>
+
+  <div class="mpb-actions">
+    <!-- Botón Categoría (abre overlay sólo con categorías) -->
+    <button id="openCategoriasBtn" class="mpb-btn" type="button">
+      <span class="mpb-btn-ico" aria-hidden="true">
+        <!-- Grid SVG -->
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+          <rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+          <rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+          <rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+        </svg>
+      </span>
+      Categoría
+    </button>
+
+    <!-- ✅ IMPORTANTE: este ID debe ser EXACTO -->
+    <button id="openFiltersBtn" class="mpb-btn" type="button">
+      <span class="mpb-btn-ico" aria-hidden="true">
+        <!-- Filter SVG -->
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      Filtros
+    </button>
+
+    <div class="mpb-sort">
+      <span class="mpb-btn-ico" aria-hidden="true">
+        <!-- Sort SVG -->
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 7h12M8 12h9M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M4 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M2.5 16.5 4 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2.5 7.5 4 6l1.5 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+
+      <!-- (tu JS actual de ordenar ya lo tenés; este select funciona igual) -->
+      <select id="mobileSortSelect" class="mpb-select">
+        <option value="category">Categoría</option>
+        <option value="bestsellers">Más vendidos</option>
+        <option value="price_desc">Mayor precio</option>
+        <option value="price_asc">Menor precio</option>
+      </select>
+    </div>
+  </div>
+</div>
+          <div id="productsContainer"></div>
+        </main>
+      </div>
+    </section>
+
+    <!-- PERFIL -->
+<section id="perfil" class="section">
+  <div class="section-header">
+    <button type="button" class="back-btn" onclick="showSection('productos')">
+      ← Volver a productos
+    </button>
+    <h2 class="section-title">Mi Perfil</h2>
+  </div>
+
+  <!-- ============================================================
+       PERFIL — LAYOUT 2 COLUMNAS
+       IZQ (≈40%): datos cliente + sucursales
+       DER (≈60%): vendor notifs + historial web + estado + drafts
+       ============================================================ -->
+  <div class="profile-2col">
+    <div class="profile-col-left">
+      <!-- Datos cliente -->
+      <div class="profile-summary">
+        <div class="profile-ra">
+          <span id="pfRazonSocial">—</span>
+        </div>
+        <div class="profile-row data-grid">
+          <div><b>Cod Cliente:</b> <span id="pfCodCliente">—</span></div>
+          <div><b>CUIT:</b> <span id="pfCuit">—</span></div>
+          <div><b>Correo:</b> <span id="pfCorreo">—</span></div>
+          <div id="pfDtoVolWrap"><b>Dto Vol:</b> <span><span id="pfDtoVol">—</span>%</span></div>
+        </div>
+        <div class="profile-pass-wrap">
+          <button type="button" class="profile-btn" id="btnOpenPassModal">
+            Modificar Contraseña
+          </button>
+          <div class="profile-pass-actions-right">
+            <button
+              type="button"
+              class="profile-btn"
+              onclick="window.location.href = 'historial.html'"
+            >
+              Ver Historial
+            </button>
+            <button
+              type="button"
+              class="profile-btn"
+              onclick="window.location.href = 'sugerencias.html'"
+            >
+              Ver Sugerencias
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sucursales -->
+      <div class="profile-card wide" id="profileCardSucursales">
+        <div class="profile-card-head--addr">
+          <div class="profile-card-title">Sucursales</div>
+        </div>
+        <div id="myAddressesBox" class="profile-box">Cargando…</div>
+        <div class="profile-card-actions profile-card-actions--addr">
+          <a
+            href="https://wa.me/5491131181021?text=Quiero%20agregar%20una%20sucursal"
+            target="_blank"
+            rel="noopener"
+            class="profile-btn profile-btn--dark"
+          >
+            + Agregar Sucursal
+          </a>
+          <button
+            type="button"
+            class="profile-btn profile-btn--compact"
+            id="btnAddressesToggle"
+            style="display:none"
+          >
+            Ver Más
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-col-right">
+      <!-- Pedidos Clientes (solo vendedores) -->
+      <div class="profile-card wide" id="vendorNotifsCard" hidden>
+        <div class="profile-card-title">
+          Pedidos Clientes
+          <span id="vendorNotifsBadge" class="notif-badge" hidden>0</span>
+        </div>
+        <div id="vendorNotifsBox" class="profile-box">Cargando…</div>
+        <div class="profile-card-actions">
+          <button
+            type="button"
+            class="profile-btn"
+            id="btnNotifsToggle"
+            hidden
+          >
+            Ver Más
+          </button>
+          <button
+            type="button"
+            class="profile-btn subtle"
+            id="btnNotifsMarkAllRead"
+            hidden
+          >
+            Marcar todas leídas
+          </button>
+        </div>
+      </div>
+
+      <!-- Historial de pedidos -->
+      <div class="profile-card wide" id="profileCardOrdersWeb">
+        <div class="profile-card-title">Historial de Pedidos Web</div>
+        <div id="myOrdersBox" class="profile-box">Cargando…</div>
+        <div class="profile-card-actions">
+          <button type="button" class="profile-btn subtle" id="btnOrdersToggle">Ver Más</button>
+        </div>
+      </div>
+
+      <!-- Estado de pedidos — COMENTADO POR AHORA. Se alimenta de
+           order_tracking (sync desde PPP cada 5 min vía Apps Script
+           syncTrackingToSupabase). Está disponible si se quiere
+           reactivar — sólo descomentar este bloque. Por ahora la
+           info de estado se ve dentro del Historial de Pedidos Web.
+      <div class="profile-card wide" id="profileCardEstadoPedidos">
+        <div class="profile-card-title">Estado de tus Pedidos</div>
+        <div id="trackingStatusBox" class="profile-box">Cargando…</div>
+      </div>
+      -->
+
+      <!-- Pedidos sin Confirmar (drafts) -->
+      <div class="profile-card wide" id="profileCardDrafts">
+        <div class="profile-card-title">Pedidos sin Confirmar</div>
+        <div id="draftCartsBox" class="profile-box">Cargando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ANÁLISIS DE COMPRAS — abajo de las 2 cols, centrado, full-width.
+       Card colapsable + lazy load del módulo analisis-venta-cliente.
+       ============================================================ -->
+  <div class="profile-bottom-row">
+    <div class="profile-card wide profile-card-collapsible" id="profileCardAnalisis">
+      <button
+        type="button"
+        class="profile-card-toggle"
+        id="profileCardAnalisisToggle"
+        aria-expanded="false"
+        aria-controls="profileCardAnalisisBody"
+      >
+        <span class="profile-card-title-toggle">Análisis de tus compras</span>
+        <span class="profile-card-chevron" aria-hidden="true">▸</span>
+      </button>
+      <div
+        class="profile-card-body"
+        id="profileCardAnalisisBody"
+        hidden
+      >
+        <!-- Aviso de carga (se llena via JS) -->
+        <div class="avc-cliente-rs" id="clienteRazonSocial" hidden></div>
+
+        <!-- Form de búsqueda OCULTO en customer mode (auto-load del cod) -->
+        <section class="avc-search-section" style="display:none;">
+          <form id="formBuscar" class="avc-search-form" autocomplete="off">
+            <input type="text" id="inputCodCliente" />
+            <button type="submit" id="btnBuscar">Buscar</button>
+            <span id="busquedaStatus"></span>
+          </form>
+        </section>
+
+        <!-- INFO DEL CLIENTE -->
+        <section
+          id="clienteInfo"
+          class="avc-cliente-info"
+          style="display: none"
+        ></section>
+
+        <!-- TABS POR SUCURSAL -->
+        <section
+          id="sucursalTabs"
+          class="avc-sucursal-tabs"
+          style="display: none"
+        ></section>
+
+        <!-- CONTENIDO POR SUCURSAL -->
+        <section
+          id="sucursalContent"
+          class="avc-sucursal-content"
+          style="display: none"
+        ></section>
+
+        <!-- Estado vacío inicial -->
+        <section id="emptyState" class="avc-empty-state" style="padding:18px;color:#888;font-size:13px;text-align:center;">
+          Hacé click arriba para ver tu análisis.
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Avisar error -->
+  <div class="profile-bottom">
+    <a
+      href="https://wa.me/5491131181021?text=Hay%20un%20error%20en%20la%20Web"
+      target="_blank"
+      rel="noopener"
+      class="profile-btn danger big"
+    >
+      Avisar de un error
+    </a>
+  </div>
+
+  <!-- Modal contraseña (ÚNICO) -->
+  <div id="passModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="passModalBackdrop"></div>
+
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="passModalTitle">
+      <div class="modal-title" id="passModalTitle">Modificar contraseña</div>
+
+      <div class="profile-form">
+
+  <div class="pass-wrap">
+    <input id="newPass1" type="password" autocomplete="new-password" placeholder="Nueva contraseña" />
+    <button type="button" class="toggle-pass" aria-label="Mostrar/ocultar contraseña" onclick="togglePassword('newPass1', this)">
+      <svg class="icon-eye icon-show" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5C6.5 5 2.1 8.4 1 12c1.1 3.6 5.5 7 11 7s9.9-3.4 11-7c-1.1-3.6-5.5-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"/>
+        <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      </svg>
+      <svg class="icon-eye icon-hide" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2.3 3.7 3.7 2.3 21.7 20.3 20.3 21.7l-2.1-2.1C16.5 20.4 14.4 21 12 21 6.5 21 2.1 17.6 1 14c.6-2 2.1-4 4.2-5.5L2.3 3.7Zm6 6 1.6 1.6A2.9 2.9 0 0 0 9 14a3 3 0 0 0 3 3c.5 0 1-.1 1.4-.3l1.6 1.6c-.9.4-1.9.7-3 .7a5 5 0 0 1-5-5c0-1.1.3-2.1.7-3Zm3.2-3.2 2.7 2.7c.5.7.8 1.6.8 2.6 0 .4 0 .7-.1 1.1l-2.1-2.1V12c0-.8-.3-1.5-.9-2.1l-.4-.4Zm.5-3.5c5.5 0 9.9 3.4 11 7-.5 1.6-1.6 3.3-3.3 4.7l-1.4-1.4c1.1-.9 1.9-2 2.4-3.3-1.1-2.9-4.8-5.9-8.7-5.9-1 0-2 .2-2.9.5L7.8 7.2C9.1 6.4 10.5 6 12 6Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="pass-wrap">
+    <input id="newPass2" type="password" placeholder="Repetir nueva contraseña" />
+    <button type="button" class="toggle-pass" aria-label="Mostrar/ocultar contraseña" onclick="togglePassword('newPass2', this)">
+      <svg class="icon-eye icon-show" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5C6.5 5 2.1 8.4 1 12c1.1 3.6 5.5 7 11 7s9.9-3.4 11-7c-1.1-3.6-5.5-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"/>
+        <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      </svg>
+      <svg class="icon-eye icon-hide" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2.3 3.7 3.7 2.3 21.7 20.3 20.3 21.7l-2.1-2.1C16.5 20.4 14.4 21 12 21 6.5 21 2.1 17.6 1 14c.6-2 2.1-4 4.2-5.5L2.3 3.7Zm6 6 1.6 1.6A2.9 2.9 0 0 0 9 14a3 3 0 0 0 3 3c.5 0 1-.1 1.4-.3l1.6 1.6c-.9.4-1.9.7-3 .7a5 5 0 0 1-5-5c0-1.1.3-2.1.7-3Zm3.2-3.2 2.7 2.7c.5.7.8 1.6.8 2.6 0 .4 0 .7-.1 1.1l-2.1-2.1V12c0-.8-.3-1.5-.9-2.1l-.4-.4Zm.5-3.5c5.5 0 9.9 3.4 11 7-.5 1.6-1.6 3.3-3.3 4.7l-1.4-1.4c1.1-.9 1.9-2 2.4-3.3-1.1-2.9-4.8-5.9-8.7-5.9-1 0-2 .2-2.9.5L7.8 7.2C9.1 6.4 10.5 6 12 6Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <button type="button" class="profile-btn" id="btnChangePass">Guardar contraseña</button>
+</div>
+
+      <div class="modal-actions">
+        <button type="button" class="profile-btn subtle" id="btnClosePassModal">Cerrar</button>
+      </div>
+
+      <div id="passStatus" class="profile-status" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+
+    <!-- CARRITO -->
+    <section id="carrito" class="section">
+      <div class="section-header">
+        <button
+          type="button"
+          class="back-btn"
+          onclick="showSection('productos')"
+        >
+          ← Seguir agregando productos
+        </button>
+        <!-- Centro: título "Pedido · Total" + Confirmar pedido debajo -->
+        <div class="section-center">
+          <h2 class="section-title">
+            Pedido · Total: $<span id="pedidoTotalHeader">0</span>
+            <span class="iva-tag">+ IVA</span>
+          </h2>
+          <button
+            id="submitOrderBtn"
+            class="submit-order"
+            type="button"
+            onclick="submitOrder()"
+            disabled
+          >
+            Confirmar pedido
+          </button>
+          <div id="orderStatus" class="order-status" aria-live="polite" hidden></div>
+        </div>
+        <!-- Derecha: solo Guardar pedido sin enviar -->
+        <div class="order-actions-top">
+          <button
+            id="saveDraftBtn"
+            class="back back-outline save-draft-btn"
+            type="button"
+            onclick="openSaveDraftModal()"
+          >
+            Guardar pedido sin enviar
+          </button>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           LAYOUT 2 COLUMNAS:
+           IZQ: Dirección + Pago + Totales
+           DER: Detalle del pedido (items)
+           ============================================================ -->
+      <div class="cart-2col">
+        <div class="cart-col-left">
+          <!-- Dirección de entrega -->
+          <div class="ship-row">
+            <div class="ship-card">
+              <label class="ship-label" for="shippingSelect">
+                Indicar Dirección de Entrega
+              </label>
+              <select id="shippingSelect" class="ship-select">
+                <option value="" selected disabled hidden>Elegir Sucursal</option>
+              </select>
+              <div class="ship-hint">
+                Seleccioná una dirección para poder confirmar el pedido.
+              </div>
+            </div>
+          </div>
+
+          <div id="clienteNuevoRow" class="ship-row" style="display: none">
+            <div class="ship-card">
+              <label class="ship-label" for="clienteNuevoInput">
+                Cliente Nuevo
+              </label>
+              <input
+                id="clienteNuevoInput"
+                class="ship-select"
+                type="text"
+                placeholder="Completar solo admin"
+                autocomplete="off"
+              />
+              <div class="ship-hint">
+                Este campo solo lo visualiza el administrador.
+              </div>
+            </div>
+          </div>
+
+          <!-- Método de pago -->
+          <div id="paymentRow" class="ship-row">
+            <div class="ship-card pay-card">
+              <div class="pay-title">Método de pago</div>
+              <div
+                class="payment-buttons payment-6"
+                id="paymentButtons"
+                aria-label="Método de pago"
+              >
+                <button type="button" class="pay-btn" data-value="0.25">
+                  <div class="pay-name">Contado</div>
+                  <div class="pay-off">25% Dto</div>
+                </button>
+                <button type="button" class="pay-btn" data-value="0.20">
+                  <div class="pay-name">15–30d</div>
+                  <div class="pay-off">20% Dto</div>
+                </button>
+                <button type="button" class="pay-btn" data-value="0.15">
+                  <div class="pay-name">31–45d</div>
+                  <div class="pay-off">15% Dto</div>
+                </button>
+                <button type="button" class="pay-btn" data-value="0.10">
+                  <div class="pay-name">46–60d</div>
+                  <div class="pay-off">10% Dto</div>
+                </button>
+                <button type="button" class="pay-btn" data-value="0.05">
+                  <div class="pay-name">90d eCheq</div>
+                  <div class="pay-off">5% Dto</div>
+                </button>
+                <button type="button" class="pay-btn" data-value="0.00">
+                  <div class="pay-name">120d eCheq</div>
+                  <div class="pay-off">0% Dto</div>
+                </button>
+              </div>
+              <button type="button" class="pay-btn pay-btn-full" id="payLaterBtn">
+                Prefiero no decidir ahora
+              </button>
+              <select id="paymentSelect" onchange="updateCart()">
+                <option value="" selected>Elegir método de pago</option>
+                <option value="LATER">
+                  Prefiero no decidir ahora: 0% Dto (nos avisás por otro medio)
+                </option>
+                <option value="0.25">Pago Contado: 25% Dto</option>
+                <option value="0.20">Pago 15-30 días: 20% Dto</option>
+                <option value="0.15">Pago 31-45 días: 15% Dto</option>
+                <option value="0.10">Pago 46-60 días: 10% Dto</option>
+                <option value="0.05">Pago 90 días Echeq: 5% Dto</option>
+                <option value="0.00">Pago 120 días Echeq: 0% Dto</option>
+              </select>
+              <div id="webNoteBox" class="web-note">
+                <div class="web-note-title">Dto Pedido Web</div>
+                <div class="web-note-value"><strong>2%</strong> (aplicado)</div>
+              </div>
+              <div class="ship-hint">
+                Seleccioná un método de pago para poder confirmar el pedido.
+              </div>
+            </div>
+          </div>
+
+          <!-- TOTALES — último hijo de cart-col-left para que se pegue
+               inmediatamente debajo del bloque "Método de Pago" sin
+               depender del alto de la columna derecha (tabla). -->
+          <div class="cart-total">
+            <div class="totals-inner">
+              <div class="totals-lines">
+                <div class="totals-line">
+                  <span>Subtotal (Tu Precio):</span>
+                  <strong>$<span id="subtotal">0</span></strong>
+                </div>
+                <div id="webDiscountLine" class="totals-line">
+                  <span>Dto Pedido Web (2%):</span>
+                  <strong>− $<span id="webDiscountValue">0</span></strong>
+                </div>
+                <div id="paymentDiscountLine" class="totals-line">
+                  <span>Dto por método de pago:
+                    <span id="paymentDiscountPercent">0%</span>
+                  </span>
+                  <strong>− $<span id="paymentDiscountValue">0</span></strong>
+                </div>
+                <span id="totalNoDiscountLine" hidden><span id="totalNoDiscount"></span></span>
+                <span id="totalDiscountsLine" hidden><span id="totalDiscounts"></span></span>
+              </div>
+
+              <h3 class="grand-total">
+                <span class="grand-total-label">Total del pedido</span>
+                <span class="grand-total-value">$<span id="total">0</span></span>
+                <span class="iva-tag">+ IVA</span>
+              </h3>
+            </div>
+          </div>
+
+        </div><!-- /.cart-col-left -->
+
+        <div class="cart-col-right">
+          <!-- CARRITO (items) — solo la tabla, con scroll si supera max-height -->
+          <div class="cart-layout cart-layout-single">
+            <div class="cart" id="cart"></div>
+          </div>
+        </div><!-- /.cart-col-right -->
+
+        <!-- FILA INFERIOR — sólo missing-card (los totales viven arriba en la
+             columna izquierda para no quedar lejos del bloque Método de Pago). -->
+        <div class="cart-bottom-row">
+          <!-- MÓDULO: ¿SEGURO QUE NO NECESITÁS ESTO? -->
+          <div id="missingAssortmentModule" class="missing-module" style="display:none"></div>
+        </div><!-- /.cart-bottom-row -->
+      </div><!-- /.cart-2col -->
+    </section>
+
+    <!-- BOTÓN "VOLVER ARRIBA" — fixed bottom-right, aparece al scrollear -->
+    <button
+      type="button"
+      id="backToTopBtn"
+      class="back-to-top-btn"
+      aria-label="Volver arriba"
+      title="Volver arriba"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="22"
+        height="22"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
+
+<!-- =========================================================
+     PANTALLA FINAL: PEDIDO CONFIRMADO
+========================================================= -->
+<section id="pedidoConfirmado" class="section">
+  <div class="success-page">
+
+    <!-- Topbar con back link minimalista -->
+    <div class="success-topbar">
+      <button
+        type="button"
+        class="success-back-link"
+        onclick="volverMayorista()"
+      >
+        ← Volver
+      </button>
+    </div>
+
+    <!-- Card central con el contenido -->
+    <div class="success-card">
+      <!-- Decoración sutil: confetti dots alrededor del check -->
+      <span class="success-confetti success-confetti-1" aria-hidden="true"></span>
+      <span class="success-confetti success-confetti-2" aria-hidden="true"></span>
+      <span class="success-confetti success-confetti-3" aria-hidden="true"></span>
+      <span class="success-confetti success-confetti-4" aria-hidden="true"></span>
+      <span class="success-confetti success-confetti-5" aria-hidden="true"></span>
+      <span class="success-confetti success-confetti-6" aria-hidden="true"></span>
+
+      <!-- Wrapper del checkmark con halo pulse detrás -->
+      <div class="success-check-wrap">
+        <span class="success-halo" aria-hidden="true"></span>
+        <div id="successAnimation" class="success-animation"></div>
+      </div>
+
+      <!-- Texto principal: título centrado al ancho completo del card +
+           kicker debajo. Subtítulo eliminado por pedido del cliente. -->
+      <div class="success-text">
+        <div class="success-title">Pedido Confirmado</div>
+        <div class="success-kicker">¡Gracias por tu compra!</div>
+      </div>
+
+      <!-- Botón PDF -->
+      <div class="success-download-wrap">
+        <button
+          type="button"
+          class="success-btn primary"
+          onclick="descargarPedidoPDF()"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:8px;vertical-align:-3px">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Descargar pedido
+        </button>
+
+        <div class="success-pdf-note">
+          También lo podrás visualizar desde <strong>Mi Perfil</strong>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="main-footer">
+      <div class="container footer-grid">
+        <!-- Logo -->
+        <div class="footer-brand">
+          <img src="./img/logo.png" alt="ChefSRL" class="footer-logo" loading="lazy" decoding="async" />
+          <p>La línea de utensilios más amplia del país.</p>
+        </div>
+
+        <!-- Contacto -->
+        <div class="footer-contact">
+          <div class="footer-item">
+            <!-- Teléfono SVG blanco -->
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="white"
+                d="M22 16.92v3a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 3 5.18 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.72c.12.81.3 1.6.54 2.36a2 2 0 0 1-.45 2.11L9 10a16 16 0 0 0 5 5l.81-.09a2 2 0 0 1 2.11.45c.76.24 1.55.42 2.36.54A2 2 0 0 1 22 16.92z"
+              />
+            </svg>
+            <span>+54 9 11 3118 1021</span>
+          </div>
+
+          <div class="footer-item">
+            <!-- Mail SVG blanco -->
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="white"
+                d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2l8 6 8-6"
+              />
+            </svg>
+            <span>ventas@chefsrl.com</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="container footer-bottom-row">
+          <span>© 2026 Chef SRL — Todos los derechos reservados.</span>
+
+          <div class="footer-links">
+            <a href="#" class="footer-link" data-modal="privacy"
+              >Política de privacidad</a
+            >
+            <a href="#" class="footer-link" data-modal="terms"
+              >Términos y condiciones</a
+            >
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- MODAL AGREGAR SUCURSAL -->
+    <div class="modal" id="modalNuevaSucursal" aria-hidden="true">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Agregar sucursal de entrega</h3>
+          <button class="modal-close" onclick="cerrarModalSucursal()">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <p
+            class="modal-hint"
+            style="margin: 0 0 12px 0; font-size: 13px; color: #555"
+          >
+            La sucursal queda usable de inmediato. Se confirma manualmente con
+            administración (24 a 48 hs).<br />
+            <span style="color:#b91c1c;font-weight:600;">Los campos marcados con * son obligatorios.</span>
+          </p>
+
+          <label>Calle <span style="color:#b91c1c;">*</span></label>
+          <input
+            id="sucCalle"
+            type="text"
+            placeholder="Nombre de la calle"
+            maxlength="80"
+            autocomplete="off"
+            required
+            oninput="validarFormSucursal()"
+          />
+
+          <label>Número <span style="color:#b91c1c;">*</span></label>
+          <input
+            id="sucAltura"
+            type="text"
+            inputmode="numeric"
+            placeholder="Altura"
+            maxlength="10"
+            autocomplete="off"
+            required
+            oninput="validarFormSucursal()"
+          />
+
+          <label>Código Postal <span style="color:#b91c1c;">*</span></label>
+          <input
+            id="sucCp"
+            type="text"
+            inputmode="numeric"
+            placeholder="C.P. (ej: 1425)"
+            maxlength="10"
+            minlength="4"
+            autocomplete="off"
+            required
+            oninput="validarFormSucursal()"
+          />
+
+          <label>Barrio / Localidad <span style="color:#b91c1c;">*</span></label>
+          <input
+            id="sucLocalidad"
+            type="text"
+            placeholder="Barrio o localidad"
+            maxlength="60"
+            autocomplete="off"
+            required
+            oninput="actualizarExpresoSegunCABA(); validarFormSucursal();"
+          />
+
+          <label>Provincia <span style="color:#b91c1c;">*</span></label>
+          <select id="sucProvincia" required onchange="actualizarExpresoSegunCABA(); validarFormSucursal();">
+            <option value="">Elegir provincia</option>
+            <option value="Buenos Aires">Buenos Aires</option>
+            <option value="CABA">CABA</option>
+            <option value="Catamarca">Catamarca</option>
+            <option value="Chaco">Chaco</option>
+            <option value="Chubut">Chubut</option>
+            <option value="Córdoba">Córdoba</option>
+            <option value="Corrientes">Corrientes</option>
+            <option value="Entre Ríos">Entre Ríos</option>
+            <option value="Formosa">Formosa</option>
+            <option value="Jujuy">Jujuy</option>
+            <option value="La Pampa">La Pampa</option>
+            <option value="La Rioja">La Rioja</option>
+            <option value="Mendoza">Mendoza</option>
+            <option value="Misiones">Misiones</option>
+            <option value="Neuquén">Neuquén</option>
+            <option value="Río Negro">Río Negro</option>
+            <option value="Salta">Salta</option>
+            <option value="San Juan">San Juan</option>
+            <option value="San Luis">San Luis</option>
+            <option value="Santa Cruz">Santa Cruz</option>
+            <option value="Santa Fe">Santa Fe</option>
+            <option value="Santiago del Estero">Santiago del Estero</option>
+            <option value="Tierra del Fuego">Tierra del Fuego</option>
+            <option value="Tucumán">Tucumán</option>
+          </select>
+
+          <label><span id="sucExpresoLabelText">Expreso</span> <span id="sucExpresoStar" style="color:#b91c1c;">*</span></label>
+          <input
+            id="sucExpreso"
+            type="text"
+            placeholder="Empezá a tipear (mín. 2 letras)…"
+            maxlength="80"
+            autocomplete="off"
+            list="sucExpresoList"
+            oninput="onExpresoInput(); validarFormSucursal();"
+            onchange="autocompletarDireccionExpreso(); validarFormSucursal();"
+          />
+          <datalist id="sucExpresoList"></datalist>
+
+          <label>Dirección del expreso</label>
+          <input
+            id="sucDireccionExpreso"
+            type="text"
+            placeholder="Dirección de retiro del expreso"
+            maxlength="200"
+            autocomplete="off"
+            oninput="validarFormSucursal()"
+          />
+          <div
+            style="font-size: 11px; color: #777; margin-top: -8px; margin-bottom: 8px"
+          >
+            Esta es la dirección a la que vamos a enviar el pedido para que el
+            expreso lo retire. Se autocompleta al elegir un expreso, podés
+            modificarla si hace falta.
+          </div>
+
+          <label>Observaciones</label>
+          <textarea
+            id="sucObservaciones"
+            placeholder="Notas para administración (horarios, contacto, referencias…)"
+            maxlength="300"
+            rows="3"
+            style="width: 100%; padding: 8px; border: 1px solid #d4d4d4; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;"
+          ></textarea>
+
+          <div
+            class="modal-error"
+            id="sucError"
+            style="display: none"
+          ></div>
+
+          <button
+            class="modal-submit"
+            id="sucGuardarBtn"
+            onclick="guardarNuevaSucursal()"
+          >
+            Guardar sucursal
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Detalle de pedido (vendedor) -->
+    <div id="vendorOrderDetailModal" class="modal hidden" aria-hidden="true">
+      <div
+        class="modal-backdrop"
+        id="vendorOrderDetailBackdrop"
+      ></div>
+      <div
+        class="modal-card vendor-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vendorOrderDetailTitle"
+      >
+        <button
+          type="button"
+          class="vendor-modal-close"
+          id="btnXCloseVendorOrderDetail"
+          aria-label="Cerrar"
+        >
+          ×
+        </button>
+        <div class="modal-title" id="vendorOrderDetailTitle">
+          Detalle del pedido
+        </div>
+        <div id="vendorOrderDetailBody" class="vendor-modal-body">
+          Cargando…
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Sugerencia de productos (vendedor) -->
+    <div id="vendorSuggestModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" id="vendorSuggestBackdrop"></div>
+      <div
+        class="modal-card vendor-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vendorSuggestTitle"
+      >
+        <button
+          type="button"
+          class="vendor-modal-close"
+          id="btnXCloseVendorSuggest"
+          aria-label="Cerrar"
+        >
+          ×
+        </button>
+        <div class="modal-title" id="vendorSuggestTitle">
+          Sugerir productos
+        </div>
+        <div id="vendorSuggestBody" class="vendor-modal-body">
+          Cargando…
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL LOGIN -->
+    <div class="modal" id="loginModal" aria-hidden="true">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Iniciar sesión</h3>
+          <button class="modal-close" onclick="closeLogin()">✕</button>
+        </div>
+
+        <div class="modal-body">
+  <label>CUIT</label>
+  <input id="cuitInput" type="text" placeholder="Ej: 11-11111111-1" maxlength="40"
+    onkeydown="if(event.key==='Enter'){event.preventDefault();login();}">
+
+  <label>Contraseña</label>
+  <div class="pass-wrap">
+    <input id="passInput" type="password" placeholder="Contraseña"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();login();}">
+    <button type="button" class="toggle-pass" aria-label="Mostrar/ocultar contraseña" onclick="togglePassword('passInput', this)">
+      <!-- eye -->
+      <svg class="icon-eye icon-show" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5C6.5 5 2.1 8.4 1 12c1.1 3.6 5.5 7 11 7s9.9-3.4 11-7c-1.1-3.6-5.5-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"/>
+        <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      </svg>
+      <!-- eye-off -->
+      <svg class="icon-eye icon-hide" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2.3 3.7 3.7 2.3 21.7 20.3 20.3 21.7l-2.1-2.1C16.5 20.4 14.4 21 12 21 6.5 21 2.1 17.6 1 14c.6-2 2.1-4 4.2-5.5L2.3 3.7Zm6 6 1.6 1.6A2.9 2.9 0 0 0 9 14a3 3 0 0 0 3 3c.5 0 1-.1 1.4-.3l1.6 1.6c-.9.4-1.9.7-3 .7a5 5 0 0 1-5-5c0-1.1.3-2.1.7-3Zm3.2-3.2 2.7 2.7c.5.7.8 1.6.8 2.6 0 .4 0 .7-.1 1.1l-2.1-2.1V12c0-.8-.3-1.5-.9-2.1l-.4-.4Zm.5-3.5c5.5 0 9.9 3.4 11 7-.5 1.6-1.6 3.3-3.3 4.7l-1.4-1.4c1.1-.9 1.9-2 2.4-3.3-1.1-2.9-4.8-5.9-8.7-5.9-1 0-2 .2-2.9.5L7.8 7.2C9.1 6.4 10.5 6 12 6Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="modal-error" id="loginError" style="display:none;"></div>
+
+  <button class="modal-submit" onclick="login()">Ingresar</button>
+
+  <p class="modal-hint">Los precios se muestran solo luego de iniciar sesión.</p>
+
+  <a id="ctaClienteModal" class="btn-quiero-cliente modal-cta"
+     href="https://wa.me/541131181021?text=Quiero%20ser%20cliente" target="_blank" rel="noopener">
+    Quiero ser cliente
+  </a>
+
+  <a class="login-help-btn"
+     href="https://wa.me/541131181021?text=Ya%20soy%20cliente%20y%20quiero%20saber%20mi%20contrase%C3%B1a"
+     target="_blank" rel="noopener">
+    Ya soy cliente y quiero saber mi contraseña
+  </a>
+</div>
+
+      </div>
+      </div>
+
+    <!-- MODAL GUARDAR PEDIDO (DRAFT) -->
+    <div class="modal hidden" id="saveDraftModal" aria-hidden="true">
+      <div class="modal-backdrop" onclick="closeSaveDraftModal()"></div>
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saveDraftTitle"
+      >
+        <div class="modal-title" id="saveDraftTitle">Guardar pedido sin enviar</div>
+        <div
+          id="saveDraftHint"
+          style="font-size:12px;color:#666;margin:-4px 0 6px;"
+        ></div>
+        <div
+          id="saveDraftCapList"
+          style="display:none;margin:8px 0 12px;"
+        ></div>
+        <div class="profile-form">
+          <label for="draftNameInput">Nombre (opcional)</label>
+          <input
+            id="draftNameInput"
+            type="text"
+            maxlength="80"
+            placeholder="Ej: Pedido sucursal Belgrano"
+            autocomplete="off"
+          />
+
+          <label for="draftNotesInput">Notas (opcional)</label>
+          <textarea
+            id="draftNotesInput"
+            rows="3"
+            maxlength="500"
+            placeholder="Comentarios internos sobre este pedido"
+          ></textarea>
+
+          <label
+            class="draft-clear-wrap"
+            style="display:flex;gap:8px;align-items:center;margin-top:8px;"
+          >
+            <input id="draftClearAfter" type="checkbox" />
+            <span>Vaciar el carrito después de guardar</span>
+          </label>
+
+          <div class="save-draft-buttons">
+            <button
+              type="button"
+              class="profile-btn subtle save-draft-cancel"
+              onclick="closeSaveDraftModal()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="profile-btn save-draft-confirm"
+              id="btnSaveDraftConfirm"
+              onclick="saveCart()"
+            >
+              Guardar pedido sin enviar
+            </button>
+          </div>
+        </div>
+        <div
+          id="saveDraftStatus"
+          class="profile-status"
+          aria-live="polite"
+        ></div>
+        <div class="save-draft-where">
+          <div class="sdw-title">
+            <span class="sdw-icon" aria-hidden="true">ⓘ</span>
+            ¿Dónde vas a encontrar tus pedidos guardados?
+          </div>
+          <div class="sdw-body">
+            En el menú de usuario (arriba a la derecha) →
+            <em>Pedidos sin Confirmar</em>, o en <em>Mi perfil</em> →
+            sección <em>Pedidos sin Confirmar</em>. Desde ahí los podés
+            cargar al carrito o eliminarlos.
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Overlay del código de verificación del LOGIN MAESTRO (admin). Se muestra
+         al ingresar la clave maestra en el campo CUIT + un código de cliente en
+         la contraseña. El código de 6 dígitos llega al mail del admin. -->
+    <div id="masterOtpOverlay" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:16px;">
+      <div style="background:#fff;max-width:400px;width:100%;border-radius:16px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 6px;font-size:19px;">Verificación por mail</h3>
+        <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.45;">Poné la clave que llegó al correo <strong>l°°°°°°°°°°°°n8n@gmail.com</strong>.</p>
+        <input id="masterOtpCode" type="text" inputmode="numeric" maxlength="6" placeholder="––––––" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:12px;font-size:22px;letter-spacing:8px;text-align:center;border:1px solid #ddd;border-radius:10px;font-family:monospace;" />
+        <div id="masterOtpError" style="color:#b00020;font-size:13px;min-height:18px;margin-top:8px;"></div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <button id="masterOtpCancel" type="button" style="flex:1;padding:11px;border:1px solid #ddd;background:#fff;border-radius:10px;cursor:pointer;">Cancelar</button>
+          <button id="masterOtpVerify" type="button" style="flex:2;padding:11px;border:none;background:#b00020;color:#fff;border-radius:10px;cursor:pointer;font-weight:600;">Entrar</button>
+        </div>
+        <button id="masterOtpResend" type="button" style="width:100%;margin-top:10px;background:none;border:none;color:#666;font-size:13px;cursor:pointer;text-decoration:underline;">Reenviar código</button>
+      </div>
+    </div>
+
+    <!-- Supabase JS -->
+     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+     <script defer src="https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie.min.js"></script>
+
+    <!-- Tu JS -->
+    <script defer src="config.js"></script>
+    <script defer src="script.js?v=20260714-subcat"></script>
+    <!-- Análisis de compras embebido en el perfil del cliente (lazy load) -->
+    <script defer src="analisis-venta-cliente.js"></script>
+
+    <!-- Toast "Ver pedido" -->
+    <div id="viewOrderToast" class="view-order-toast" aria-hidden="true">
+      <button id="viewOrderBtn" type="button" class="view-order-btn">
+        Ver pedido
+      </button>
+    </div>
+
+  </body>
+
+</html>

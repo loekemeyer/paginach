@@ -1,0 +1,649 @@
+/* ============================================================
+   Análisis Venta Cliente — sigue el design system de admin.css
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f5f5f5;
+  --bg2: #fff;
+  --bg3: #fafafa;
+  --border: #e6e6e6;
+  --border2: #ddd;
+  --accent: #212122;
+  --accent2: #333;
+  --text: #222;
+  --text2: #666;
+  --text3: #999;
+  --danger: #b00020;
+  --success: #0a7a2f;
+  --warning: #e6a100;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+html {
+  font-size: 15px;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    Roboto,
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---------- LOADING / GATE ---------- */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.loading-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 44px 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+.logo-mark {
+  width: 38px;
+  height: 38px;
+  background: var(--accent);
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.loading-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 16px 0 8px;
+}
+.loading-sub {
+  color: var(--text3);
+  font-size: 13.5px;
+}
+
+/* ---------- HEADER ---------- */
+.avc-header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.avc-header-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  gap: 16px;
+}
+.avc-back {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  font-weight: 700;
+}
+.avc-back-text {
+  font-size: 17px;
+}
+.avc-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- BUTTONS ---------- */
+.avc-btn {
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.avc-btn:hover:not(:disabled) {
+  background: var(--bg3);
+  border-color: var(--text3);
+}
+.avc-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.avc-btn-primary:hover:not(:disabled) {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+.avc-btn-primary:disabled {
+  background: var(--text3);
+  border-color: var(--text3);
+  color: #fff;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.avc-btn-ghost {
+  background: var(--bg2);
+}
+
+/* ---------- MAIN ---------- */
+.avc-main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ---------- BÚSQUEDA ---------- */
+.avc-search-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.avc-search-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.avc-search-label {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.avc-search-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 9px 12px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg2);
+}
+.avc-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(33, 33, 34, 0.08);
+}
+.avc-search-status {
+  font-size: 13px;
+  color: var(--text2);
+}
+.avc-search-status--warn {
+  color: var(--warning);
+}
+.avc-search-status--err {
+  color: var(--danger);
+}
+.avc-search-status--ok {
+  color: var(--success);
+}
+
+/* ---------- CLIENTE INFO ---------- */
+.avc-cliente-info {
+  margin-bottom: 16px;
+}
+.avc-info-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+/* ---------- TABS POR SUCURSAL ---------- */
+.avc-sucursal-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0;
+  overflow-x: auto;
+  background: var(--bg2);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 8px 8px 0;
+  position: sticky;
+  top: 60px;
+  z-index: 5;
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.avc-tab {
+  background: transparent;
+  border: none;
+  padding: 10px 16px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.avc-tab:hover {
+  color: var(--text);
+}
+.avc-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------- BLOQUE COLAPSABLE ---------- */
+/* Todo el contenido se ve como UN solo bloque: container con bg+border+radius,
+   subsecciones internas separadas solo por línea divisoria. */
+.avc-sucursal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.avc-block {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border);
+}
+.avc-block:first-child {
+  border-top: none;
+}
+/* última sección redondea el bottom para cerrar el panel */
+.avc-block:last-child,
+.avc-block:last-child > .avc-block-head,
+.avc-block:last-child > .avc-block-body {
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+.avc-block-head {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  background: var(--bg2);
+  border-radius: 0;
+  /* sticky para que el título quede arriba al scrollear */
+  position: sticky;
+  top: 110px;
+  z-index: 4;
+}
+.avc-collapsible[open] > .avc-block-head {
+  border-bottom: 1px solid var(--border);
+}
+.avc-block-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  flex: 1;
+}
+.avc-block-count {
+  font-size: 12px;
+  color: var(--text2);
+  background: var(--bg3);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.avc-block-body {
+  padding: 14px 18px;
+}
+.avc-block-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+/* details/summary nativo */
+.avc-collapsible > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background 0.12s ease;
+}
+.avc-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+.avc-collapsible > summary:hover {
+  background: var(--bg3);
+}
+.avc-collapsible:not([open]) > summary {
+  border-bottom-color: transparent;
+}
+.avc-caret {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text3);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  width: 12px;
+}
+.avc-collapsible[open] > summary .avc-caret {
+  transform: rotate(90deg);
+}
+
+/* ---------- TABLAS — estética tipo modal, wrapper con borde redondeado ---------- */
+.avc-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg2);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.avc-table {
+  width: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: auto;
+  background: var(--bg2);
+}
+.avc-table th,
+.avc-table td {
+  padding: 10px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.avc-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.avc-table th {
+  background: var(--bg3);
+  font-weight: 500;
+  color: var(--text2);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--border);
+}
+.avc-table tbody tr {
+  transition: background 0.1s ease;
+}
+.avc-table tbody tr:hover {
+  background: var(--bg3);
+}
+.avc-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.avc-table td.desc,
+.avc-table th.desc {
+  white-space: normal;
+  max-width: 320px;
+  line-height: 1.35;
+}
+.avc-table td:first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+.avc-disruptive {
+  background: rgba(230, 161, 0, 0.08) !important;
+}
+.avc-disruptive td:first-child::before {
+  content: "⚡ ";
+  color: var(--warning);
+}
+
+/* ---------- STATS GRID ---------- */
+.avc-stats-grid {
+  display: grid;
+  /* 4 cards en 1 fila (Pedidos / Frecuencia / Promedio Cajas / Plazo Compras).
+     En modo admin con más cards (Acuerdo, Ranking), auto-fit a 4 cols igual y
+     el resto cae a la siguiente fila. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg3);
+}
+@media (max-width: 1100px) {
+  .avc-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .avc-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .avc-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.avc-stat-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 14px 18px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.avc-stat-label {
+  font-size: 11px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.avc-stat-value {
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--text);
+  line-height: 1.2;
+}
+.avc-stat-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 3px;
+}
+
+/* ---------- TONOS DE ALERTA EN STAT CARDS ---------- */
+.avc-stat-card--warn {
+  background: rgba(245, 158, 11, 0.08); /* ámbar suave */
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+.avc-stat-card--warn .avc-stat-value {
+  color: #b45309;
+}
+.avc-stat-card--warn .avc-stat-label {
+  color: #92400e;
+}
+
+.avc-stat-card--danger {
+  background: rgba(220, 38, 38, 0.08); /* rojo suave */
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+.avc-stat-card--danger .avc-stat-value {
+  color: #b91c1c;
+}
+.avc-stat-card--danger .avc-stat-label {
+  color: #991b1b;
+}
+
+.avc-stat-icon {
+  font-size: 12px;
+  margin-right: 2px;
+}
+
+/* ---------- BADGE DE ALERTA ARRIBA DEL CLIENTE ---------- */
+.avc-alert-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.avc-alert-badge--warn {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fbbf24;
+}
+.avc-alert-badge--danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+  animation: avc-pulse 1.6s ease-in-out infinite;
+}
+@keyframes avc-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18); }
+}
+
+/* ---------- EMPTY STATE ---------- */
+.avc-empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text2);
+  font-size: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 700px) {
+  .avc-header-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .avc-header-actions {
+    flex-wrap: wrap;
+  }
+  .avc-search-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .avc-search-input {
+    max-width: none;
+  }
+  .avc-sucursal-tabs {
+    top: 116px;
+  }
+}
+
+/* ============================================================
+   AVC-CLIENTE-RS — Card de razón social del cliente buscado
+   (porteado de LK). Aparece una vez que se carga el cliente,
+   muestra el nombre + cod + botón Exportar Excel a la derecha.
+   ============================================================ */
+.avc-cliente-rs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #fff 0%, #fafbfc 100%);
+  border: 1px solid var(--border, #e9e9e9);
+  border-left: 4px solid var(--success, #0a7a2f);
+  border-radius: var(--radius, 14px);
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.avc-cliente-rs[hidden] {
+  display: none;
+}
+.avc-cliente-rs .avc-rs-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.avc-cliente-rs .avc-rs-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text, #111);
+  letter-spacing: -0.2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.avc-cliente-rs .avc-rs-cod {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2, #666);
+  background: #f0f0f3;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.avc-cliente-rs .avc-rs-export {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.avc-cliente-rs .avc-rs-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 768px) {
+  .avc-cliente-rs {
+    padding: 12px 14px;
+  }
+  .avc-cliente-rs .avc-rs-value {
+    font-size: 16px;
+  }
+}

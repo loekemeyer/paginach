@@ -1,0 +1,1702 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carga de Pedidos - Loekemeyer</title>
+    <link rel="icon" type="image/jpeg" href="img/favicon.jpg" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #f5f5f5;
+        --bg2: #fff;
+        --bg3: #fafafa;
+        --border: #e6e6e6;
+        --border2: #ddd;
+        --accent: #212122;
+        --accent2: #333;
+        --text: #222;
+        --text2: #666;
+        --text3: #999;
+        --danger: #b00020;
+        --success: #0a7a2f;
+        --warning: #e6a100;
+        --radius: 12px;
+        --radius-sm: 8px;
+      }
+      html {
+        font-size: 15px;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      .login-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .login-box {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 44px 40px;
+        max-width: 400px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        text-align: center;
+      }
+      .login-title {
+        font-size: 22px;
+        font-weight: 800;
+        margin-bottom: 8px;
+      }
+      .login-sub {
+        color: var(--text3);
+        font-size: 13.5px;
+      }
+      .logo-mark {
+        width: 38px;
+        height: 38px;
+        background: var(--accent);
+        border-radius: 10px;
+        color: #fff;
+        font-weight: 800;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+      }
+
+      .app {
+        display: none;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 40px;
+      }
+      .app-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+      }
+      .app-header h1 {
+        font-size: 28px;
+        font-weight: 800;
+      }
+      .app-header-sub {
+        color: var(--text3);
+        font-size: 13.5px;
+        margin-top: 4px;
+      }
+
+      .card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      }
+      .section-title {
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .section-sub {
+        color: var(--text3);
+        font-size: 13px;
+        margin-top: 3px;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-primary:hover {
+        background: var(--accent2);
+      }
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-ghost {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        background: transparent;
+        color: var(--text2);
+        border: 1px solid var(--border2);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .btn-ghost:hover {
+        border-color: var(--text3);
+        color: var(--text);
+      }
+      .btn-success {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: var(--success);
+        color: #fff;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-success:hover {
+        background: #08691f;
+      }
+      .btn-success:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .field-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text2);
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+      .field-input,
+      .field-select {
+        width: 100%;
+        background: #fff;
+        border: 1px solid var(--border2);
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-size: 14px;
+        padding: 10px 14px;
+        outline: none;
+      }
+      .field-input:focus,
+      .field-select:focus {
+        border-color: var(--accent);
+      }
+      input[type="number"].field-input {
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+
+      .search-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .search-row .field-input,
+      .search-row .field-select {
+        max-width: 300px;
+      }
+
+      .upload-zone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px 40px;
+        border: 2px dashed var(--border2);
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-align: center;
+      }
+      .upload-zone:hover,
+      .upload-zone.drag-over {
+        border-color: var(--accent);
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .upload-icon {
+        color: var(--text3);
+        margin-bottom: 10px;
+      }
+      .upload-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .upload-sub {
+        color: var(--text3);
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        margin-top: 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .data-table thead tr {
+        background: var(--bg3);
+      }
+      .data-table th {
+        padding: 12px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: var(--text2);
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .data-table td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .data-table tbody tr:hover td {
+        background: var(--bg3);
+      }
+      .td-ok {
+        color: var(--success);
+        font-weight: 600;
+      }
+      .td-warn {
+        color: var(--warning);
+        font-weight: 600;
+      }
+      .td-err {
+        color: var(--danger);
+        font-weight: 600;
+      }
+
+      .info-card {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 20px;
+        margin-top: 16px;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+      }
+      .info-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text3);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .info-val {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .history-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .history-chip {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .history-chip .hc-cod {
+        font-weight: 700;
+        color: var(--text);
+      }
+      .history-chip .hc-boxes {
+        color: var(--text3);
+        font-size: 11px;
+      }
+
+      .preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .preview-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .stats-row {
+        display: flex;
+        gap: 16px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+      }
+      .stat-box {
+        flex: 1;
+        min-width: 140px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 16px;
+        text-align: center;
+      }
+      .stat-val {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .stat-label {
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text3);
+        font-size: 13px;
+        text-decoration: none;
+      }
+      .back-link:hover {
+        color: var(--text);
+      }
+
+      .toast-wrap {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .toast {
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transition: opacity 0.3s;
+      }
+      .toast.success {
+        background: var(--success);
+      }
+      .toast.error {
+        background: var(--danger);
+      }
+      .toast.warning {
+        background: var(--warning);
+        color: #222;
+      }
+      .toast-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+        flex-shrink: 0;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--border2);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin-right: 8px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Order summary */
+      .order-summary-box {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 18px;
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .osb-item {
+        text-align: center;
+      }
+      .osb-val {
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .osb-label {
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+      }
+
+      /* ===== FLYERS RECOMENDADOS ===== */
+      .flyers-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-top: 20px;
+      }
+      .flyer-item {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--bg2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+      .flyer-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+      }
+      .flyer-item img {
+        width: 100%;
+        display: block;
+        cursor: pointer;
+      }
+      .flyer-item-footer {
+        padding: 12px 16px;
+        text-align: center;
+        border-top: 1px solid var(--border);
+      }
+      .flyer-item-cod {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .flyer-item-desc {
+        font-size: 12px;
+        color: var(--text3);
+        margin-top: 2px;
+      }
+      .flyer-item-dl {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border2);
+        background: #fff;
+        color: var(--text);
+        transition: background 0.15s;
+      }
+      .flyer-item-dl:hover {
+        background: var(--bg3);
+      }
+
+      /* Controls OUTSIDE flyer */
+      .upsell-add-section {
+        margin-top: 20px;
+      }
+      .upsell-add-title {
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: var(--text);
+      }
+      .ua-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 8px;
+      }
+      .ua-row img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #fff;
+        flex-shrink: 0;
+      }
+      .ua-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .ua-name {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .ua-detail {
+        font-size: 12px;
+        color: var(--text3);
+      }
+      .ua-controls {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      .ua-minus,
+      .ua-plus {
+        width: 38px;
+        height: 38px;
+        border: 1px solid var(--border2);
+        background: #fff;
+        font-size: 20px;
+        font-weight: 700;
+        cursor: pointer;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s;
+      }
+      .ua-minus {
+        border-radius: 10px 0 0 10px;
+      }
+      .ua-plus {
+        border-radius: 0 10px 10px 0;
+      }
+      .ua-minus:hover,
+      .ua-plus:hover {
+        background: var(--bg);
+      }
+      .ua-qty {
+        width: 44px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--text);
+        border-top: 1px solid var(--border2);
+        border-bottom: 1px solid var(--border2);
+        background: var(--bg);
+      }
+
+      @media (max-width: 700px) {
+        .app {
+          padding: 16px;
+        }
+        .card {
+          padding: 18px;
+        }
+        .search-row .field-input,
+        .search-row .field-select {
+          max-width: 100%;
+        }
+        .flyers-grid {
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
+        .ua-row {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-overlay" id="loadingScreen">
+      <div class="login-box">
+        <div class="logo-mark">LK</div>
+        <h2 class="login-title">Carga de Pedidos</h2>
+        <p class="login-sub" id="authStatus">Verificando sesion...</p>
+      </div>
+    </div>
+
+    <div class="app" id="app">
+      <div class="app-header">
+        <div>
+          <a class="back-link" href="/mayorista">← Volver a Mayorista</a>
+          <h1 style="margin-top: 8px">Generador de Ofertas</h1>
+          <p class="app-header-sub">
+            Buscá el cliente, subí el cotizador y se descarga el flyer
+            automáticamente
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="search-row" style="margin-bottom: 16px">
+          <div style="flex: 0 0 160px">
+            <label class="field-label">Cod Cliente</label>
+            <input
+              class="field-input"
+              id="searchCod"
+              type="number"
+              placeholder="Ej: 4214"
+            />
+          </div>
+          <div style="flex: 1; min-width: 200px">
+            <label class="field-label">O Razón Social</label>
+            <input
+              class="field-input"
+              id="searchRazon"
+              placeholder="Escribí para buscar..."
+            />
+          </div>
+          <button
+            class="btn-primary"
+            id="searchBtn"
+            style="align-self: flex-end"
+          >
+            Buscar
+          </button>
+        </div>
+        <div id="clienteInfo" style="display: none"></div>
+
+        <div id="uploadSection" style="display: none; margin-top: 16px">
+          <div class="upload-zone" id="dropZone">
+            <div class="upload-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                width="36"
+                height="36"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <p class="upload-title">Arrastrá el Cotizador acá</p>
+            <p class="upload-sub">o</p>
+            <label class="btn-primary" for="fileInput"
+              >Seleccionar archivo</label
+            >
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden />
+          </div>
+          <div
+            id="statusMsg"
+            style="
+              text-align: center;
+              margin-top: 12px;
+              color: var(--text3);
+              font-size: 14px;
+            "
+          ></div>
+        </div>
+      </div>
+
+      <!-- Flyers recomendados -->
+      <div class="card" id="step4" style="display: none">
+        <div class="section-title">Flyers recomendados</div>
+        <div class="section-sub">Productos que el cliente todavía no probó</div>
+        <div
+          id="upsellMessageWrap"
+          style="
+            display: none;
+            margin-top: 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            padding: 18px 20px;
+            position: relative;
+          "
+        >
+          <pre
+            id="upsellMessage"
+            style="
+              white-space: pre-wrap;
+              font-family: inherit;
+              font-size: 14px;
+              line-height: 1.6;
+              color: #222;
+              margin: 0;
+            "
+          ></pre>
+          <button
+            id="copyMsgBtn"
+            class="btn-ghost"
+            style="
+              position: absolute;
+              top: 12px;
+              right: 12px;
+              padding: 6px 12px;
+              font-size: 12px;
+            "
+          >
+            Copiar
+          </button>
+        </div>
+        <div id="upsellSection">
+          <div class="flyers-grid" id="flyersGrid"></div>
+        </div>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+          "
+        >
+          <button type="button" class="btn-primary" id="downloadAllFlyersBtn">
+            Descargar todos los flyers
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-wrap" id="toastWrap"></div>
+
+    <!-- Modal de alerta por anomalía -->
+    <div
+      id="anomalyModal"
+      style="
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+      "
+    >
+      <div
+        style="
+          background: #fff;
+          border-radius: 16px;
+          max-width: 560px;
+          width: 90%;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+          padding: 0;
+        "
+      >
+        <div
+          style="
+            background: #b00020;
+            color: #fff;
+            padding: 18px 24px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          "
+        >
+          <span style="font-size: 22px">⚠</span>
+          <div>
+            <div style="font-size: 17px; font-weight: 800">
+              Pedido con cantidades inusuales
+            </div>
+            <div style="font-size: 13px; opacity: 0.85">
+              Se detectaron artículos con cantidades muy por encima del promedio
+              histórico del cliente
+            </div>
+          </div>
+        </div>
+        <div id="anomalyModalBody" style="padding: 20px 24px"></div>
+        <div
+          style="
+            padding: 14px 24px;
+            border-top: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+          "
+        >
+          <button
+            class="btn-primary"
+            onclick="closeAnomalyModal()"
+            style="background: #333"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      "use strict";
+
+      var SUPABASE_URL = "https://nkhzocgdpwtgrmwleihr.supabase.co";
+      var SUPABASE_ANON_KEY =
+        "sb_publishable_aThHtJLBKytg9k_6UdH2Eg_Use7f1zH";
+      // En chef Supabase la edge function se llama "smooth-handler" (no
+      // "sheets-proxy" como en LK). sheets-proxy NO está deployada en chef.
+      var SHEETS_PROXY_URL =
+        "https://nkhzocgdpwtgrmwleihr.supabase.co/functions/v1/smooth-handler";
+
+      var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      var currentSession = null;
+      var allProducts = [];
+      var selectedCustomer = null;
+      var customerHistory = { web: [], sales: [] };
+      var parsedOrder = [];
+
+      // ---- AUTH ----
+      async function checkAuth() {
+        var statusEl = document.getElementById("authStatus");
+        var result = await sb.auth.getSession();
+        if (result.error || !result.data || !result.data.session) {
+          if (statusEl) statusEl.textContent = "No hay sesion. Redirigiendo...";
+          setTimeout(function () {
+            location.href = "/mayorista";
+          }, 1200);
+          return false;
+        }
+        currentSession = result.data.session;
+        var userId = currentSession.user.id;
+        var adminCheck = await sb
+          .from("admins")
+          .select("auth_user_id")
+          .eq("auth_user_id", userId)
+          .maybeSingle();
+        if (adminCheck.error || !adminCheck.data) {
+          if (statusEl)
+            statusEl.textContent = "Acceso denegado. Solo administradores.";
+          setTimeout(function () {
+            location.href = "/mayorista";
+          }, 1500);
+          return false;
+        }
+        document.getElementById("loadingScreen").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        return true;
+      }
+
+      // ---- HELPERS ----
+      function formatMoney(n) {
+        return Math.round(Number(n || 0)).toLocaleString("es-AR");
+      }
+
+      function toast(msg, type) {
+        type = type || "success";
+        var wrap = document.getElementById("toastWrap");
+        var el = document.createElement("div");
+        el.className = "toast " + type;
+        el.innerHTML = '<span class="toast-dot"></span>' + msg;
+        wrap.appendChild(el);
+        setTimeout(function () {
+          el.style.opacity = "0";
+          setTimeout(function () {
+            el.remove();
+          }, 300);
+        }, 3500);
+      }
+
+      // ---- LOAD PRODUCTS ----
+      async function loadProducts() {
+        var PAGE = 1000,
+          all = [],
+          offset = 0;
+        do {
+          var r = await sb
+            .from("products")
+            .select("id,cod,description,category,list_price,uxb,active,ranking")
+            .eq("active", true)
+            .range(offset, offset + PAGE - 1);
+          if (r.error) throw new Error(r.error.message);
+          var batch = r.data || [];
+          all = all.concat(batch);
+          offset += PAGE;
+        } while (batch.length === PAGE);
+        allProducts = all;
+      }
+
+      function findProduct(cod) {
+        var c = String(cod || "")
+          .trim()
+          .toUpperCase();
+        return allProducts.find(function (p) {
+          return (
+            String(p.cod || "")
+              .trim()
+              .toUpperCase() === c
+          );
+        });
+      }
+
+      // ---- SEARCH CUSTOMER ----
+      document
+        .getElementById("searchBtn")
+        .addEventListener("click", searchCustomer);
+      document
+        .getElementById("searchCod")
+        .addEventListener("keydown", function (e) {
+          if (e.key === "Enter") searchCustomer();
+        });
+      document
+        .getElementById("searchRazon")
+        .addEventListener("keydown", function (e) {
+          if (e.key === "Enter") searchCustomer();
+        });
+
+      async function searchCustomer() {
+        var cod = document.getElementById("searchCod").value.trim();
+        var razon = document.getElementById("searchRazon").value.trim();
+        if (!cod && !razon) {
+          toast("Ingresá un código o razón social", "warning");
+          return;
+        }
+
+        var q = sb.from("customers").select("*");
+        if (cod) {
+          q = q.eq("cod_cliente", cod);
+        } else {
+          q = q.ilike("business_name", "%" + razon + "%");
+        }
+        q = q.limit(10);
+
+        var result = await q;
+        if (result.error) {
+          toast("Error: " + result.error.message, "error");
+          return;
+        }
+        if (!result.data || !result.data.length) {
+          toast("Cliente no encontrado", "warning");
+          return;
+        }
+
+        if (result.data.length === 1) {
+          selectCustomer(result.data[0]);
+        } else {
+          // Multiple results — show picker
+          var html =
+            '<div class="info-card"><p style="margin-bottom:10px;font-weight:600">Se encontraron ' +
+            result.data.length +
+            " clientes:</p>";
+          result.data.forEach(function (c) {
+            html +=
+              '<div style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" class="pick-row" data-id="' +
+              c.id +
+              '">';
+            html +=
+              "<span><strong>" +
+              c.cod_cliente +
+              "</strong> — " +
+              (c.business_name || "") +
+              "</span>";
+            html +=
+              '<span style="color:var(--text3);font-size:12px">CUIT: ' +
+              (c.cuit || "-") +
+              "</span>";
+            html += "</div>";
+          });
+          html += "</div>";
+          document.getElementById("clienteInfo").innerHTML = html;
+          document.getElementById("clienteInfo").style.display = "block";
+
+          // Attach click to rows
+          document.querySelectorAll(".pick-row").forEach(function (row) {
+            row.addEventListener("click", function () {
+              var id = this.dataset.id;
+              var c = result.data.find(function (x) {
+                return x.id === id;
+              });
+              if (c) selectCustomer(c);
+            });
+          });
+        }
+      }
+
+      async function selectCustomer(c) {
+        selectedCustomer = c;
+        var statusMsg = document.getElementById("statusMsg");
+        statusMsg.textContent =
+          "Cargando historial de " + c.business_name + "...";
+
+        document.getElementById("clienteInfo").style.display = "block";
+        document.getElementById("clienteInfo").innerHTML =
+          '<div class="info-card" style="padding:12px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">' +
+          "<span><strong>" +
+          (c.cod_cliente || "") +
+          "</strong> — " +
+          (c.business_name || "") +
+          "</span>" +
+          '<span style="color:var(--text3);font-size:13px">Dto: ' +
+          (c.dto_vol != null ? (c.dto_vol * 100).toFixed(0) + "%" : "0%") +
+          "</span>" +
+          "</div>";
+
+        document.getElementById("uploadSection").style.display = "block";
+
+        // Load history in background
+        await loadCustomerHistory(c);
+        statusMsg.textContent = "Historial cargado. Subí el cotizador.";
+
+        // Clear previous
+        document.getElementById("step4").style.display = "none";
+        parsedOrder = [];
+        fileInput.value = "";
+      }
+
+      // ---- CUSTOMER HISTORY (data only, no UI) ----
+      async function loadCustomerHistory(c) {
+        var webItems = [];
+        try {
+          // Only consider orders from the last 18 months
+          var cutoff = new Date();
+          cutoff.setMonth(cutoff.getMonth() - 18);
+          var cutoffISO = cutoff.toISOString();
+
+          var allOrderIds = [],
+            oOffset = 0;
+          do {
+            var ordersR = await sb
+              .from("orders")
+              .select("id")
+              .eq("customer_id", c.id)
+              .gte("created_at", cutoffISO)
+              .range(oOffset, oOffset + 999);
+            if (ordersR.error || !ordersR.data) break;
+            allOrderIds = allOrderIds.concat(
+              ordersR.data.map(function (o) {
+                return o.id;
+              }),
+            );
+            oOffset += 1000;
+          } while (ordersR.data.length === 1000);
+
+          if (allOrderIds.length) {
+            for (var bi = 0; bi < allOrderIds.length; bi += 200) {
+              var batchIds = allOrderIds.slice(bi, bi + 200);
+              var wiOffset = 0;
+              do {
+                var itemsR = await sb
+                  .from("order_items")
+                  .select("product_id,cajas,uxb,is_loke")
+                  .in("order_id", batchIds)
+                  .range(wiOffset, wiOffset + 999);
+                if (itemsR.error || !itemsR.data) break;
+                webItems = webItems.concat(itemsR.data);
+                wiOffset += 1000;
+              } while (itemsR.data.length === 1000);
+            }
+          }
+        } catch (e) {
+          console.error("web history error", e);
+        }
+
+        var salesLines = [];
+        try {
+          var slR = await sb.rpc("get_customer_sales_history", {
+            p_customer_code: String(c.cod_cliente),
+          });
+          if (!slR.error && slR.data) salesLines = slR.data;
+        } catch (e) {
+          console.error("sales history error", e);
+        }
+
+        customerHistory = { web: webItems, sales: salesLines };
+      }
+
+      // ---- FILE UPLOAD ----
+      var dropZone = document.getElementById("dropZone");
+      var fileInput = document.getElementById("fileInput");
+
+      dropZone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+      dropZone.addEventListener("dragleave", function () {
+        dropZone.classList.remove("drag-over");
+      });
+      dropZone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener("change", function () {
+        if (fileInput.files.length) handleFile(fileInput.files[0]);
+      });
+
+      function handleFile(file) {
+        if (!selectedCustomer) {
+          toast("Primero seleccioná un cliente", "warning");
+          return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          var wb = XLSX.read(e.target.result, { type: "array" });
+
+          // Pick the best sheet: prefer "Cotizador Loekemeyer" or second sheet, fallback to first
+          var sheetName = wb.SheetNames.find(function (n) {
+            return /cotizador/i.test(n);
+          });
+          if (!sheetName && wb.SheetNames.length > 1)
+            sheetName = wb.SheetNames[1];
+          if (!sheetName) sheetName = wb.SheetNames[0];
+          var sheet = wb.Sheets[sheetName];
+
+          // Read as array-of-arrays to handle the Cotizador format (headers may not be row 1)
+          var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+          // Find the header row: look for a row containing "Cod" and "Pedido/Cajas"
+          var headerIdx = -1,
+            codCol = -1,
+            cajasCol = -1;
+          for (var i = 0; i < Math.min(raw.length, 50); i++) {
+            var row = raw[i];
+            if (!row) continue;
+            for (var j = 0; j < row.length; j++) {
+              var cell = String(row[j] || "")
+                .trim()
+                .toLowerCase();
+              if (cell === "cod" || cell === "código" || cell === "codigo")
+                codCol = j;
+              if (
+                /pedido/i.test(cell) ||
+                /^caja/i.test(cell) ||
+                cell === "cajas"
+              )
+                cajasCol = j;
+            }
+            if (codCol >= 0 && cajasCol >= 0) {
+              headerIdx = i;
+              break;
+            }
+          }
+
+          // Fallback: column D=Cod (index 3), column E=Pedido en Cajas (index 4)
+          if (headerIdx < 0) {
+            codCol = 3;
+            cajasCol = 4;
+            headerIdx = 0;
+            toast(
+              "No se encontró encabezado, usando columnas D y E",
+              "warning",
+            );
+          }
+
+          // Parse data rows after header
+          parsedOrder = [];
+          for (var ri = headerIdx + 1; ri < raw.length; ri++) {
+            var r = raw[ri];
+            if (!r) continue;
+            var cod = String(r[codCol] || "").trim();
+            var cajas = parseInt(r[cajasCol]) || 0;
+            if (!cod || cajas <= 0) continue;
+            // Skip non-numeric codes (section headers, text rows)
+            if (!/^[0-9]/.test(cod)) continue;
+
+            var product = findProduct(cod);
+            parsedOrder.push({
+              cod: cod,
+              cajas: cajas,
+              product: product,
+              found: !!product,
+              description: product ? product.description : "NO ENCONTRADO",
+              uxb: product ? Number(product.uxb || 0) : 0,
+              listPrice: product ? Number(product.list_price || 0) : 0,
+            });
+          }
+
+          showStep4();
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      // ---- UPSELL ----
+      var UPSELL_CODES = [
+        "598E",
+        "589E",
+        "566E",
+        "522E",
+        "539E",
+        "583E",
+        "536E",
+        "538E",
+        "540E",
+      ];
+      var BASE_IMG =
+        SUPABASE_URL + "/storage/v1/object/public/products-images/";
+      var BASE_FLYER = SUPABASE_URL + "/storage/v1/object/public/flyers/";
+      var IMG_VERSION = "9999-12-31-2";
+      var upsellCart = {};
+      var upsellTimerInterval = null;
+
+      function getNextSundayMidnight() {
+        var now = new Date();
+        var day = now.getDay();
+        var daysUntilSunday = day === 0 ? 0 : 7 - day;
+        var target = new Date(now);
+        target.setDate(target.getDate() + daysUntilSunday);
+        target.setHours(23, 59, 59, 999);
+        if (now >= target && day === 0) target.setDate(target.getDate() + 7);
+        return target;
+      }
+
+      function formatCountdown(ms) {
+        if (ms <= 0) return "00:00:00";
+        var s = Math.floor(ms / 1000);
+        var d = Math.floor(s / 86400);
+        s %= 86400;
+        var h = Math.floor(s / 3600);
+        s %= 3600;
+        var m = Math.floor(s / 60);
+        s %= 60;
+        var parts = [];
+        if (d > 0) parts.push(d + "d");
+        parts.push(
+          String(h).padStart(2, "0") +
+            ":" +
+            String(m).padStart(2, "0") +
+            ":" +
+            String(s).padStart(2, "0"),
+        );
+        return parts.join(" ");
+      }
+
+      function getUpsellProducts() {
+        // IDs in current parsed order
+        var orderCods = new Set(
+          parsedOrder.map(function (r) {
+            return String(r.cod || "")
+              .trim()
+              .toUpperCase();
+          }),
+        );
+
+        // 18-month history product IDs → get their codes
+        var historyCods = new Set();
+        customerHistory.web.forEach(function (wi) {
+          var p = allProducts.find(function (x) {
+            return x.id === wi.product_id;
+          });
+          if (p)
+            historyCods.add(
+              String(p.cod || "")
+                .trim()
+                .toUpperCase(),
+            );
+        });
+        customerHistory.sales.forEach(function (sl) {
+          historyCods.add(
+            String(sl.item_code || "")
+              .trim()
+              .toUpperCase(),
+          );
+        });
+
+        var eligible = UPSELL_CODES.map(function (cod) {
+          var codUp = cod.toUpperCase();
+          if (orderCods.has(codUp)) {
+            return null;
+          }
+          if (historyCods.has(codUp)) {
+            return null;
+          }
+          var p = allProducts.find(function (x) {
+            return (
+              String(x.cod || "")
+                .trim()
+                .toUpperCase() === codUp
+            );
+          });
+          if (!p) {
+            return null;
+          }
+          return p;
+        }).filter(Boolean);
+
+        eligible.sort(function (a, b) {
+          var ra = a.ranking != null ? Number(a.ranking) : Infinity;
+          var rb = b.ranking != null ? Number(b.ranking) : Infinity;
+          return ra - rb;
+        });
+
+        // Max one per category (family)
+        var usedCategories = new Set();
+        var unique = [];
+        for (var i = 0; i < eligible.length && unique.length < 3; i++) {
+          var cat = String(eligible[i].category || "")
+            .trim()
+            .toUpperCase();
+          if (cat && usedCategories.has(cat)) {
+            continue;
+          }
+          if (cat) usedCategories.add(cat);
+          unique.push(eligible[i]);
+        }
+
+        return unique;
+      }
+
+      var currentFlyerProducts = [];
+
+      // ---- ANOMALY DETECTION ----
+      var ANOMALY_THRESHOLD = 6;
+
+      async function loadAnomalyMap(codCliente) {
+        try {
+          var result = await sb
+            .from("v_customer_item_month")
+            .select("item_code, boxes, ym")
+            .eq("customer_code", String(codCliente).trim());
+
+          if (result.error || !result.data || !result.data.length) return {};
+
+          var totals = {};
+          var itemMonths = {};
+          for (var i = 0; i < result.data.length; i++) {
+            var r = result.data[i];
+            var code = String(r.item_code || "").trim();
+            if (!code) continue;
+            totals[code] = (totals[code] || 0) + Number(r.boxes || 0);
+            if (!itemMonths[code]) itemMonths[code] = {};
+            itemMonths[code][r.ym] = true;
+          }
+
+          var map = {};
+          for (var c in totals) {
+            var months = Object.keys(itemMonths[c]).length || 1;
+            map[c] = {
+              avg: totals[c] / months,
+              totalBoxes: totals[c],
+              months: months,
+            };
+          }
+          return map;
+        } catch (e) {
+          console.warn("loadAnomalyMap error:", e);
+          return {};
+        }
+      }
+
+      function detectOrderAnomalies(anomalyMap, orderItems) {
+        var anomalies = [];
+        for (var i = 0; i < orderItems.length; i++) {
+          var item = orderItems[i];
+          var code = String(item.cod || "").trim();
+          var info = anomalyMap[code];
+          if (!info || info.avg <= 0) continue;
+          var ratio = item.cajas / info.avg;
+          if (ratio >= ANOMALY_THRESHOLD) {
+            anomalies.push({
+              cod: code,
+              description: item.description || code,
+              cajas: item.cajas,
+              avg: info.avg,
+              ratio: ratio,
+              months: info.months,
+            });
+          }
+        }
+        return anomalies;
+      }
+
+      function showAnomalyModal(anomalies, customerName) {
+        var body = document.getElementById("anomalyModalBody");
+        var html =
+          '<p style="font-size:14px;color:#666;margin-bottom:14px"><strong>' +
+          (customerName || "") +
+          "</strong> — " +
+          anomalies.length +
+          " artículo" +
+          (anomalies.length > 1 ? "s" : "") +
+          " con cantidad inusual:</p>";
+        html +=
+          '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+        html +=
+          '<thead><tr style="background:#fafafa;border-bottom:2px solid #e6e6e6">';
+        html += '<th style="padding:10px 8px;text-align:left">Artículo</th>';
+        html += '<th style="padding:10px 8px;text-align:center">Pidió</th>';
+        html += '<th style="padding:10px 8px;text-align:center">Promedio</th>';
+        html +=
+          '<th style="padding:10px 8px;text-align:center">Diferencia</th>';
+        html += "</tr></thead><tbody>";
+        for (var i = 0; i < anomalies.length; i++) {
+          var a = anomalies[i];
+          html += '<tr style="border-bottom:1px solid #eee">';
+          html +=
+            '<td style="padding:10px 8px"><strong>' +
+            a.cod +
+            '</strong><br><span style="color:#999;font-size:12px">' +
+            a.description +
+            "</span></td>";
+          html +=
+            '<td style="padding:10px 8px;text-align:center;color:#b00020;font-weight:800;font-size:16px">' +
+            a.cajas +
+            " cajas</td>";
+          html +=
+            '<td style="padding:10px 8px;text-align:center;color:#666">' +
+            a.avg.toFixed(1) +
+            ' cajas/mes<br><span style="font-size:11px;color:#999">(' +
+            a.months +
+            " meses)</span></td>";
+          html +=
+            '<td style="padding:10px 8px;text-align:center"><span style="background:#b00020;color:#fff;padding:3px 10px;border-radius:6px;font-weight:700;font-size:13px">' +
+            a.ratio.toFixed(1) +
+            "x</span></td>";
+          html += "</tr>";
+        }
+        html += "</tbody></table>";
+        html +=
+          '<p style="font-size:12px;color:#999;margin-top:14px">Recomendación: verificar con el cliente si las cantidades son correctas antes de procesar.</p>';
+        body.innerHTML = html;
+        var modal = document.getElementById("anomalyModal");
+        modal.style.display = "flex";
+      }
+
+      function closeAnomalyModal() {
+        document.getElementById("anomalyModal").style.display = "none";
+      }
+
+      async function checkAndShowAnomalies() {
+        if (!selectedCustomer || !parsedOrder.length) return;
+        var anomalyMap = await loadAnomalyMap(selectedCustomer.cod_cliente);
+        var anomalies = detectOrderAnomalies(anomalyMap, parsedOrder);
+        if (anomalies.length > 0) {
+          showAnomalyModal(anomalies, selectedCustomer.business_name);
+        }
+      }
+
+      async function showStep4() {
+        if (!parsedOrder.length) {
+          toast("No se encontraron filas válidas con cajas", "warning");
+          return;
+        }
+
+        // Upsell
+        upsellCart = {};
+        if (upsellTimerInterval) clearInterval(upsellTimerInterval);
+
+        var upsellProducts = getUpsellProducts();
+        currentFlyerProducts = upsellProducts;
+        var upsellSection = document.getElementById("upsellSection");
+
+        if (upsellProducts.length > 0) {
+          upsellSection.style.display = "block";
+
+          // Build personalized message
+          var dtoVol = Number(selectedCustomer.dto_vol || 0);
+          var WEB_DISCOUNT = 0.02;
+          var nextSun = getNextSundayMidnight();
+          var diasSemana = [
+            "domingo",
+            "lunes",
+            "martes",
+            "miércoles",
+            "jueves",
+            "viernes",
+            "sábado",
+          ];
+          var meses = [
+            "enero",
+            "febrero",
+            "marzo",
+            "abril",
+            "mayo",
+            "junio",
+            "julio",
+            "agosto",
+            "septiembre",
+            "octubre",
+            "noviembre",
+            "diciembre",
+          ];
+          var fechaDomingo =
+            diasSemana[nextSun.getDay()] +
+            " " +
+            nextSun.getDate() +
+            " de " +
+            meses[nextSun.getMonth()];
+
+          var preciosTexto = upsellProducts
+            .map(function (p) {
+              var codSafe = String(p.cod || "").trim();
+              var listPrice = Number(p.list_price || 0);
+              var contado =
+                listPrice * (1 - dtoVol) * (1 - WEB_DISCOUNT) * (1 - 0.25);
+              var oferta = contado * (1 - 0.3);
+              return codSafe + " = $" + formatMoney(oferta) + " + IVA";
+            })
+            .join("\n");
+
+          var mensajeTexto =
+            "Hola " +
+            (selectedCustomer.business_name || "") +
+            "! Recibimos tu pedido, y analizando tu historial de compras, y este pedido que me acabas de enviar. Vemos que no probaste con estos items nuevos que como lanzamiento los tenemos en oferta. Avisame si queres agregar alguno de ellos. Esta oferta es valida hasta el " +
+            fechaDomingo +
+            ". Como lanzamiento estamos haciendo descuentos del 30% en estos " +
+            upsellProducts.length +
+            " items. Tu precio contado quedaría en:\n" +
+            preciosTexto;
+
+          document.getElementById("upsellMessage").textContent = mensajeTexto;
+          document.getElementById("upsellMessageWrap").style.display = "block";
+
+          // Copy message + download flyers
+          document.getElementById("copyMsgBtn").onclick = function () {
+            navigator.clipboard.writeText(mensajeTexto).then(function () {
+              toast("Mensaje copiado al portapapeles");
+            });
+            downloadFlyerProducts(upsellProducts);
+          };
+
+          // Build flyer image cards from pre-uploaded flyers in Supabase Storage
+          var flyersHtml = upsellProducts
+            .map(function (p) {
+              var codSafe = String(p.cod || "").trim();
+              var flyerSrc =
+                BASE_FLYER + "flyer_" + encodeURIComponent(codSafe) + ".jpg";
+              return (
+                '<div class="flyer-item">' +
+                '<img src="' +
+                flyerSrc +
+                '" alt="Flyer ' +
+                codSafe +
+                '" onerror="this.src=\'img/no-image.jpg\'">' +
+                '<div class="flyer-item-footer">' +
+                '<div class="flyer-item-cod">COD ' +
+                codSafe +
+                "</div>" +
+                '<div class="flyer-item-desc">' +
+                String(p.description || "") +
+                "</div>" +
+                '<button class="flyer-item-dl" data-cod="' +
+                codSafe +
+                '" data-src="' +
+                flyerSrc +
+                '">Descargar</button>' +
+                "</div>" +
+                "</div>"
+              );
+            })
+            .join("");
+
+          document.getElementById("flyersGrid").innerHTML = flyersHtml;
+
+          // Individual download buttons
+          document.querySelectorAll(".flyer-item-dl").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var src = this.getAttribute("data-src");
+              var cod = this.getAttribute("data-cod");
+              downloadBlob(src, "flyer_" + cod + ".jpg");
+            });
+          });
+
+          // Show section
+          document.getElementById("step4").style.display = "block";
+          document
+            .getElementById("step4")
+            .scrollIntoView({ behavior: "smooth" });
+
+          var statusMsg = document.getElementById("statusMsg");
+          statusMsg.innerHTML =
+            '<span style="color:var(--success);font-weight:600">' +
+            upsellProducts.length +
+            " flyers encontrados.</span>";
+
+          fileInput.value = "";
+        } else {
+          document.getElementById("statusMsg").textContent =
+            "Este cliente ya conoce todos los productos de la oferta. No se genera flyer.";
+          toast(
+            "No hay productos nuevos para ofrecer a este cliente",
+            "warning",
+          );
+          fileInput.value = "";
+        }
+
+        // Verificar anomalías en cantidades
+        checkAndShowAnomalies();
+      }
+
+      // ---- DOWNLOAD HELPERS ----
+      function downloadBlob(url, filename) {
+        fetch(url)
+          .then(function (r) {
+            return r.blob();
+          })
+          .then(function (blob) {
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          })
+          .catch(function () {
+            toast("Error descargando " + filename, "error");
+          });
+      }
+
+      function downloadFlyerProducts(products) {
+        products.forEach(function (p) {
+          var codSafe = String(p.cod || "").trim();
+          var flyerSrc =
+            BASE_FLYER + "flyer_" + encodeURIComponent(codSafe) + ".jpg";
+          downloadBlob(flyerSrc, "flyer_" + codSafe + ".jpg");
+        });
+        toast("Descargando " + products.length + " flyers");
+      }
+
+      // ---- DOWNLOAD ALL FLYERS ----
+      document
+        .getElementById("downloadAllFlyersBtn")
+        .addEventListener("click", function () {
+          if (!currentFlyerProducts.length) return;
+          downloadFlyerProducts(currentFlyerProducts);
+        });
+
+      // ---- INIT ----
+      document.addEventListener("DOMContentLoaded", async function () {
+        var ok = await checkAuth();
+        if (ok) await loadProducts();
+      });
+    </script>
+  </body>
+</html>

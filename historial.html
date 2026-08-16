@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Historial de Compras · Chef SRL</title>
+    <meta name="description" content="Historial de compras mayoristas en Chef SRL." />
+
+    <!-- Google Font: Inter (matching LK look) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Supabase UMD (SOLO UNA VEZ) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/historial.css" />
+    <link rel="icon" type="image/png" href="img/favicon-opt.png" />
+
+    <style>
+      /* Dual scroll: barra arriba y abajo */
+      .scroll-top {
+        overflow-x: auto;
+        overflow-y: hidden;
+        margin-bottom: -1px;
+      }
+      .scroll-top-inner { height: 1px; }
+      .scroll-top::-webkit-scrollbar,
+      .scroll-bottom::-webkit-scrollbar { height: 8px; }
+      .scroll-top::-webkit-scrollbar-track,
+      .scroll-bottom::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+      .scroll-top::-webkit-scrollbar-thumb,
+      .scroll-bottom::-webkit-scrollbar-thumb { background: #c4c7cc; border-radius: 8px; }
+      .scroll-top::-webkit-scrollbar-thumb:hover,
+      .scroll-bottom::-webkit-scrollbar-thumb:hover { background: #a0a4ab; }
+      /* scroll-bottom overflow se define en historial.css */
+    </style>
+  </head>
+
+  <body>
+    <div class="card">
+      <div class="hist-header">
+        <button
+          class="back-btn"
+          type="button"
+          onclick="window.location.href = 'mayorista.html'"
+        >
+          <span aria-hidden="true">←</span>
+          <span>Volver a productos</span>
+        </button>
+
+        <div class="hist-title-block">
+          <div class="hist-title-icon" aria-hidden="true">📊</div>
+          <div class="hist-title-text">
+            <h1>Historial de compras</h1>
+            <p class="hist-subtitle">Todos tus pedidos confirmados, mes a mes.</p>
+          </div>
+        </div>
+
+        <div id="cliente"></div>
+        <div id="status">Cargando...</div>
+      </div>
+
+      <!-- Scroll superior (mirror) -->
+      <div class="scroll-top" id="scrollTop">
+        <div class="scroll-top-inner" id="scrollTopInner"></div>
+      </div>
+
+      <!-- Scroll inferior (real) -->
+      <div class="scroll-bottom" id="scrollBottom">
+        <table id="tabla" style="display: none">
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <p class="hist-hint">
+        💡 Deslizá horizontal para ver más meses · usá el buscador del navegador (Ctrl+F) para encontrar un producto rápido
+      </p>
+    </div>
+
+    <script>
+      // Sincronizar scroll superior e inferior
+      (function () {
+        const top = document.getElementById("scrollTop");
+        const bot = document.getElementById("scrollBottom");
+        let syncing = false;
+
+        top.addEventListener("scroll", function () {
+          if (syncing) return;
+          syncing = true;
+          bot.scrollLeft = top.scrollLeft;
+          syncing = false;
+        });
+
+        bot.addEventListener("scroll", function () {
+          if (syncing) return;
+          syncing = true;
+          top.scrollLeft = bot.scrollLeft;
+          syncing = false;
+        });
+
+        // Ajustar ancho del mirror cuando la tabla se muestre
+        const observer = new MutationObserver(function () {
+          const tabla = document.getElementById("tabla");
+          if (tabla && tabla.style.display !== "none") {
+            document.getElementById("scrollTopInner").style.width =
+              tabla.scrollWidth + "px";
+          }
+        });
+        observer.observe(document.getElementById("tabla"), {
+          attributes: true,
+          attributeFilter: ["style"],
+        });
+      })();
+    </script>
+
+    <!-- Tu lógica del historial -->
+    <script src="config.js"></script>
+    <script src="historial.js"></script>
+  </body>
+</html>

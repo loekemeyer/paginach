@@ -1,0 +1,667 @@
+/* ===== Variables ===== */
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --border-light: #f0f1f3;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --accent: #111827;
+  --accent-hover: #1f2937;
+  /* Chef brand (navy) — replaces LK red */
+  --brand: #0b315d;
+  --brand-soft: #e8eef7;
+  --brand-soft-2: #d6e3f2;
+  --brand-border: #bfd1ea;
+  --radius: 18px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(15, 23, 42, 0.08);
+  --row-hover: #f8f9fb;
+  --stripe: #fafbfc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #e3edf9 0%, transparent 60%),
+    radial-gradient(900px 500px at 95% 110%, #e8f0ff 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  padding: 28px 18px;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ===== Card principal ===== */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 32px 32px 28px;
+  max-width: 1800px;
+  margin: 0 auto;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+  position: relative;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: linear-gradient(90deg, var(--brand) 0%, #2e6abd 50%, var(--brand) 100%);
+}
+
+/* ===== HEADER ===== */
+.hist-header {
+  margin-bottom: 22px;
+}
+
+/* ===== Botón volver ===== */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.back-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  transform: translateX(-2px);
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.15);
+}
+.back-btn span:first-child {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* ===== Title block (icono + título + subtítulo) ===== */
+.hist-title-block {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.hist-title-icon {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: linear-gradient(135deg, var(--brand-soft) 0%, var(--brand-soft-2) 100%);
+  border: 1px solid var(--brand-border);
+  box-shadow: 0 2px 6px rgba(11, 49, 93, 0.1);
+}
+.hist-title-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* ===== Título ===== */
+h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.hist-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+#cliente {
+  display: inline-block;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+  margin-bottom: 8px;
+  background: #f3f4f6;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+#cliente:empty {
+  display: none;
+}
+/* Vendedor: si hay dropdown selector, ocultar el chip #cliente (es redundante) */
+.hist-header:has(#hist-cliente-selector) #cliente {
+  display: none;
+}
+
+/* ===== Selector "Ver historial de:" (vendedor) — match con la página ===== */
+.hist-cliente-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+}
+.hist-cliente-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  letter-spacing: -0.1px;
+}
+.hist-cliente-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'><path fill='%23374151' d='M6 8 0 0h12z'/></svg>")
+    no-repeat right 14px center;
+  background-size: 10px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 9px 36px 9px 16px;
+  min-width: 260px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.hist-cliente-select:hover {
+  border-color: #9ca3af;
+}
+.hist-cliente-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1);
+}
+
+#status {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Hint debajo de la tabla */
+.hist-hint {
+  margin: 16px 4px 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+/* ===== Contenedor scroll (border-radius acá, NO en la tabla) ===== */
+.scroll-bottom {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow-x: auto;
+  margin-top: 16px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 1),
+    0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+/* ===== Tabla ===== */
+#tabla {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 0;
+  font-size: 13px;
+}
+
+/* ===== Celdas base ===== */
+#tabla th,
+#tabla td {
+  padding: 8px 10px;
+  vertical-align: middle;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+}
+
+#tabla th:last-child,
+#tabla td:last-child {
+  border-right: none;
+}
+
+#tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ===== Zebra striping + hover ===== */
+#tabla tbody tr:nth-child(even) {
+  background: var(--stripe);
+}
+#tabla tbody tr {
+  transition: background 0.12s ease;
+}
+#tabla tbody tr:hover {
+  background: var(--row-hover);
+}
+#tabla tbody tr:hover td:nth-child(1) {
+  background: var(--row-hover);
+}
+
+/* ===== Header de meses ===== */
+#tabla th {
+  background: #f7f8fa;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  position: sticky;
+  z-index: 2;
+}
+
+#tabla th.mes-th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 5px 8px;
+  background: #f7f8fa;
+  text-transform: capitalize;
+}
+
+/* ===== Fila de año ===== */
+#tabla th.year-th {
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+  color: #fff;
+  padding: 9px 12px;
+  letter-spacing: 1px;
+  border-right: 1px solid #374151;
+  border-bottom: none;
+  text-transform: uppercase;
+}
+
+#tabla th.year-th:last-child {
+  border-right: none;
+}
+
+#tabla th.year-empty {
+  background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+  border-right: 1px solid #374151;
+  border-bottom: none;
+}
+
+/* ===== Columna Cod (sticky) ===== */
+#tabla th:nth-child(1),
+#tabla td:nth-child(1) {
+  width: 50px;
+  max-width: 55px;
+  min-width: 40px;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;
+}
+
+#tabla tbody tr:nth-child(even) td:nth-child(1) {
+  background: var(--stripe);
+}
+
+#tabla th:nth-child(1) {
+  background: #f7f8fa;
+  z-index: 4;
+}
+
+/* Fila de año: primera celda también sticky */
+#tabla th.year-empty:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+/* Sombra sutil al borde derecho de la columna fija */
+#tabla td:nth-child(1),
+#tabla th:nth-child(1) {
+  box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.08);
+}
+
+/* ===== Columna Descripción ===== */
+#tabla th:nth-child(2),
+#tabla td:nth-child(2) {
+  text-align: left;
+  max-width: 190px;
+  white-space: normal;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* ===== Columna Foto ===== */
+#tabla th:nth-child(3),
+#tabla td:nth-child(3) {
+  padding: 4px;
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
+}
+
+.h-img-mini {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #f0f1f3;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.h-img-mini:hover {
+  transform: scale(1.6) translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+  position: relative;
+}
+
+/* ===== Columna Total ===== */
+#tabla td:nth-child(4) {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Celdas de meses (cantidades) ===== */
+#tabla td:nth-child(n + 6) {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: #4b5563;
+  min-width: 48px;
+}
+
+/* ===== Altura de fila ===== */
+#tabla tbody tr {
+  height: auto;
+  min-height: 48px;
+}
+
+/* ===== Stepper (pedido) ===== */
+.pedido-td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.h-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.h-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.h-step-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+.h-step-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.h-step-btn:active {
+  transform: scale(0.93);
+}
+
+.h-step-in {
+  width: 42px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  text-align: center;
+  font-weight: 500;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  appearance: textfield;
+  -webkit-appearance: textfield;
+  -moz-appearance: textfield;
+}
+.h-step-in:focus {
+  border-color: #888;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+.h-step-in::-webkit-outer-spin-button,
+.h-step-in::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.h-add-btn {
+  width: 100px;
+  border: none;
+  background: linear-gradient(180deg, #1f2937 0%, var(--accent) 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.h-add-btn:hover {
+  background: linear-gradient(180deg, #1b4c85 0%, var(--brand) 100%);
+  box-shadow: 0 4px 12px rgba(11, 49, 93, 0.3);
+  transform: translateY(-1px);
+}
+.h-add-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+.h-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #9ca3af;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ===== Inactivo ===== */
+.h-inactive {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+  font-style: italic;
+  background: #f3f4f6;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-block;
+  border: 1px dashed #d1d5db;
+}
+
+/* ===== Acciones historial ===== */
+.hist-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hist-btn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 140px;
+  transition: all 0.15s ease;
+}
+.hist-btn:hover {
+  background: var(--accent-hover);
+}
+.hist-btn:active {
+  transform: scale(0.97);
+}
+
+.hist-btn.subtle {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.hist-btn.subtle:hover {
+  background: #f3f4f6;
+}
+
+/* ===== Loader ===== */
+.page-loader {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.page-loader img {
+  width: 80px;
+  height: auto;
+}
+
+/* ===== Imagen producto ===== */
+.h-img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid #eee;
+  background: #fff;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ===== Scrollbar personalizado ===== */
+.card::-webkit-scrollbar {
+  height: 8px;
+}
+.card::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 8px;
+}
+.card::-webkit-scrollbar-thumb {
+  background: #c4c7cc;
+  border-radius: 8px;
+}
+.card::-webkit-scrollbar-thumb:hover {
+  background: #a0a4ab;
+}
+
+/* Cuando está embebido en admin (?cod=X), ocultar elementos que no aplican */
+body.lk-admin-embed .back-btn {
+  display: none !important;
+}
+
+/* Admin embed: ocultar columna "Pedido" (stepper + botón Agregar) */
+body.lk-admin-embed #tabla th:nth-child(5),
+body.lk-admin-embed #tabla td:nth-child(5) {
+  display: none !important;
+}
+
+/* ============================================
+   RESPONSIVE — Mobile
+   ============================================ */
+
+@media (max-width: 768px) {
+  body { padding: 14px 8px; }
+  .card { padding: 18px 14px 16px; border-radius: 14px; }
+  .hist-title-block { gap: 12px; margin-bottom: 10px; }
+  .hist-title-icon { width: 42px; height: 42px; font-size: 22px; border-radius: 12px; }
+  h1 { font-size: 19px; }
+  .hist-subtitle { font-size: 11.5px; }
+  #cliente { font-size: 11.5px; padding: 5px 10px; }
+  .hist-hint { font-size: 10.5px; margin-top: 12px; }
+  .back-btn { padding: 7px 13px; font-size: 12px; margin-bottom: 14px; }
+
+  /* Tabla más compacta */
+  #tabla th, #tabla td { padding: 5px 5px; font-size: 11px; }
+
+  #tabla th:nth-child(1), #tabla td:nth-child(1) {
+    font-size: 10px; min-width: 32px; max-width: 40px; padding: 4px 3px; background: #fff;
+  }
+  #tabla tbody tr:nth-child(even) td:nth-child(1) { background: var(--stripe); }
+  #tabla th:nth-child(1) { background: #f7f8fa; }
+
+  #tabla th:nth-child(2), #tabla td:nth-child(2) { max-width: 120px; font-size: 11px; padding: 4px 5px; }
+  #tabla th:nth-child(3), #tabla td:nth-child(3) { width: 44px; min-width: 44px; max-width: 44px; padding: 3px; }
+  .h-img-mini { width: 38px; height: 38px; }
+  #tabla td:nth-child(4) { font-size: 11px; }
+  #tabla td:nth-child(n + 6) { font-size: 10px; min-width: 36px; padding: 4px 3px; }
+  #tabla th.mes-th { font-size: 9px; padding: 3px 4px; }
+  #tabla th.year-th { font-size: 11px; padding: 5px 6px; }
+
+  .h-stepper { gap: 2px; }
+  .h-step-btn { width: 24px; height: 24px; font-size: 13px; border-radius: 6px; }
+  .h-step-in { width: 34px; height: 24px; font-size: 11px; border-radius: 6px; }
+  .h-add-btn { width: 80px; font-size: 10px; padding: 5px 4px; border-radius: 6px; }
+  .h-action { gap: 3px; }
+  .h-inactive { font-size: 9px; padding: 2px 5px; }
+  .h-img { width: 60px; height: 60px; border-radius: 8px; }
+  #tabla tbody tr { min-height: 40px; }
+}
+
+@media (max-width: 400px) {
+  body { padding: 8px 4px; }
+  .card { padding: 10px 6px; border-radius: 10px; }
+  h1 { font-size: 16px; }
+  #tabla th:nth-child(2), #tabla td:nth-child(2) { max-width: 90px; font-size: 10px; }
+  .h-step-btn { width: 22px; height: 22px; font-size: 12px; }
+  .h-step-in { width: 30px; height: 22px; font-size: 10px; }
+  .h-add-btn { width: 70px; font-size: 9px; padding: 4px 3px; }
+}

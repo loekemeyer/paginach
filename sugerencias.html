@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sugerencias por IA · Chef SRL</title>
+    <meta name="description" content="Sugerencias de compra inteligentes basadas en tu historial de pedidos en Chef SRL." />
+
+    <!-- Google Font: Inter (matching LK look) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+    <!-- tu css -->
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/sugerencias.css" />
+    <link rel="icon" href="img/favicon-opt.png" />
+  </head>
+
+  <body>
+    <!-- ✅ Botón por fuera del cuadro (arriba-izquierda) -->
+    <button
+      class="back-btn"
+      type="button"
+      onclick="window.location.href = 'mayorista.html'"
+    >
+      <span aria-hidden="true">←</span>
+      <span>Volver a productos</span>
+    </button>
+
+    <div class="card">
+      <div class="sug-header">
+        <div class="sug-title-block">
+          <div class="sug-title-icon" aria-hidden="true">✨</div>
+          <div class="sug-title-text">
+            <h1>Sugerencias de Compra IA</h1>
+            <p class="sug-subtitle">Productos seleccionados para vos por nuestra IA</p>
+          </div>
+        </div>
+
+        <div class="sug-tabs">
+          <button type="button" class="sug-tab active" id="tabSugerencias">
+            Sugerencias
+          </button>
+          <button type="button" class="sug-tab" id="tabNovedades">
+            Novedades
+          </button>
+        </div>
+      </div>
+
+      <div id="cliente" class="muted">Cliente: —</div>
+      <div id="status" class="muted">Cargando…</div>
+
+      <div class="tableWrap">
+        <table id="tablaSug" style="display: none">
+          <thead id="theadSug"></thead>
+          <tbody id="tbodySug"></tbody>
+        </table>
+      </div>
+
+      <button
+        id="btnVerMas"
+        class="vermas-btn"
+        style="display: none"
+        type="button"
+      >
+        Ver más
+      </button>
+
+      <div class="sug-info-box">
+        <span class="sug-info-icon" aria-hidden="true">🤖</span>
+        Este módulo utiliza inteligencia artificial para analizar tu historial
+        de compras de los últimos 18 meses y detectar oportunidades de
+        reposición y crecimiento. Te mostramos los productos con mayor rotación
+        de la firma, excluyendo equivalencias similares a los artículos que ya
+        adquirís, para ayudarte a optimizar tu surtido y potenciar tus ventas.
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="./sugerencias.js"></script>
+
+    <!-- ===== LOADING SCREEN ===== -->
+    <div id="pageLoader" class="page-loader">
+      <div class="loader-content">
+        <img src="img/gpt.gif" alt="Cargando..." />
+        <div class="loader-text">
+          Analizando sugerencias<span class="dots">...</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

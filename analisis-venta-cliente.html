@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Análisis Venta Cliente — Loekemeyer</title>
+    <link rel="icon" type="image/png" href="img/favicon.png?v=2" />
+    <link rel="stylesheet" href="css/analisis-venta-cliente.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <!-- LOADING / GATE -->
+    <div class="loading-overlay" id="loadingScreen">
+      <div class="loading-box">
+        <div class="logo-mark">LK</div>
+        <h2 class="loading-title">Análisis Venta Cliente</h2>
+        <p class="loading-sub" id="authStatus">Verificando sesión...</p>
+      </div>
+    </div>
+
+    <!-- APP SHELL -->
+    <div class="app-shell" id="appShell" style="display: none">
+      <header class="avc-header">
+        <div class="avc-header-inner">
+          <a class="avc-back" href="/mayorista" title="Volver">
+            <span class="logo-mark">LK</span>
+            <span class="avc-back-text">Análisis Venta Cliente</span>
+          </a>
+          <div class="avc-header-actions">
+            <button
+              type="button"
+              id="btnExportarExcel"
+              class="avc-btn avc-btn-primary"
+              disabled
+            >
+              Exportar Excel
+            </button>
+            <button
+              type="button"
+              id="btnReporteTotal"
+              class="avc-btn avc-btn-ghost"
+              title="Genera reporte de TODOS los clientes"
+            >
+              Reporte Total Clientes
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main class="avc-main">
+        <!-- BUSCADOR DE CLIENTE -->
+        <section class="avc-search-section">
+          <form id="formBuscar" class="avc-search-form" autocomplete="off">
+            <label for="inputCodCliente" class="avc-search-label">
+              Código Cliente
+            </label>
+            <input
+              type="text"
+              id="inputCodCliente"
+              class="avc-search-input"
+              placeholder="Ej: 1234"
+              required
+            />
+            <button type="submit" class="avc-btn avc-btn-primary">
+              Buscar
+            </button>
+            <span id="busquedaStatus" class="avc-search-status"></span>
+          </form>
+        </section>
+
+        <!-- ESTADÍSTICA MADRE — IMPORTADOR -->
+        <section class="avc-search-section" style="padding: 0">
+          <details>
+            <summary
+              style="
+                cursor: pointer;
+                padding: 14px 20px;
+                font-weight: 600;
+                font-size: 14px;
+                user-select: none;
+              "
+            >
+              Estadística Madre — Importador
+              <span
+                id="emLastImport"
+                style="
+                  font-weight: 400;
+                  font-size: 12px;
+                  color: var(--text2);
+                  margin-left: 8px;
+                "
+              ></span>
+            </summary>
+            <div style="padding: 4px 20px 18px 20px">
+              <p
+                style="
+                  font-size: 13px;
+                  color: var(--text2);
+                  margin-bottom: 14px;
+                "
+              >
+                Importa el xlsx de tendencia mensual por SKU
+                (<code>Y:\AA  VENTAS\A7 Estadistica MADRE\…</code>) y
+                actualiza la tabla <code>estadistica_madre</code>.
+                Re-importar cada vez que se actualice el archivo
+                (cada ~3 meses).
+              </p>
+
+              <div
+                style="
+                  display: flex;
+                  gap: 12px;
+                  align-items: center;
+                  flex-wrap: wrap;
+                  margin-bottom: 12px;
+                "
+              >
+                <input
+                  type="file"
+                  id="emFileInput"
+                  accept=".xlsx,.xlsm,.xls"
+                  style="display: none"
+                />
+                <button
+                  type="button"
+                  class="avc-btn avc-btn-primary"
+                  onclick="document.getElementById('emFileInput').click()"
+                >
+                  Elegir archivo xlsx
+                </button>
+                <span
+                  id="emFileName"
+                  style="font-size: 13px; color: var(--text2)"
+                >
+                  Ningún archivo seleccionado
+                </span>
+                <button
+                  type="button"
+                  class="avc-btn"
+                  id="emBtnImportar"
+                  disabled
+                  style="margin-left: auto"
+                >
+                  Importar a Supabase
+                </button>
+              </div>
+
+              <div
+                id="emStatus"
+                style="
+                  font-size: 13px;
+                  color: var(--text);
+                  margin-bottom: 8px;
+                  min-height: 18px;
+                "
+              ></div>
+
+              <div
+                id="emPreview"
+                style="
+                  max-height: 400px;
+                  overflow: auto;
+                  border: 1px solid var(--border);
+                  border-radius: var(--radius-sm);
+                  display: none;
+                "
+              ></div>
+
+              <details
+                style="
+                  margin-top: 14px;
+                  font-size: 13px;
+                  color: var(--text2);
+                "
+              >
+                <summary style="cursor: pointer; font-weight: 600">
+                  Detalles técnicos
+                </summary>
+                <ul style="margin: 8px 0; padding-left: 20px">
+                  <li>
+                    Hoja esperada: <code>Loeke Madre - &lt;fecha&gt;</code>
+                    (fallback: primera hoja con
+                    <em>"loeke madre"</em> en el nombre)
+                  </li>
+                  <li>
+                    Encabezado en fila 5. Columnas leídas:
+                    <code>Cat. Art</code>, <code>Ranking</code>,
+                    <code>Descripcion</code>,
+                    <code>Cod Nuevo Isis</code>,
+                    <code>E.Madre Uni x Mes</code>,
+                    <code>Tendencia en UNI</code>,
+                    <code>uni x Caja</code>,
+                    <code>E.Madre en Cajas</code>,
+                    <code>Proveedor</code>
+                  </li>
+                  <li>Upsert por <code>cod</code> en lotes de 500</li>
+                  <li>
+                    La fecha de última importación se guarda en
+                    localStorage <code>lastImport_em</code>
+                  </li>
+                </ul>
+              </details>
+            </div>
+          </details>
+        </section>
+
+        <!-- INFO DEL CLIENTE -->
+        <section
+          id="clienteInfo"
+          class="avc-cliente-info"
+          style="display: none"
+        ></section>
+
+        <!-- TABS POR SUCURSAL -->
+        <section
+          id="sucursalTabs"
+          class="avc-sucursal-tabs"
+          style="display: none"
+        ></section>
+
+        <!-- CONTENIDO POR SUCURSAL -->
+        <section
+          id="sucursalContent"
+          class="avc-sucursal-content"
+          style="display: none"
+        ></section>
+
+        <!-- ESTADO VACÍO -->
+        <section id="emptyState" class="avc-empty-state">
+          <p>Ingresá un código de cliente para comenzar el análisis.</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="analisis-venta-cliente.js"></script>
+  </body>
+</html>
