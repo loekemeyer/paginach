@@ -729,6 +729,7 @@
           >
             Confirmar pedido
           </button>
+          <div id="expoOrderGate" class="expo-order-gate" hidden></div>
           <div id="orderStatus" class="order-status" aria-live="polite" hidden></div>
         </div>
         <!-- Derecha: solo Guardar pedido sin enviar -->
@@ -956,6 +957,8 @@
         <div class="success-kicker">¡Gracias por tu compra!</div>
       </div>
 
+      <div id="successOrderNum" class="success-ordernum" style="display:none"></div>
+
       <!-- Botón PDF -->
       <div class="success-download-wrap">
         <button
@@ -975,10 +978,231 @@
           También lo podrás visualizar desde <strong>Mi Perfil</strong>
         </div>
       </div>
+
+      <!-- EXPO: panel de cierre (portado desde LK) -->
+          <div id="expoConfirmPanel" class="expo-confirm-panel" style="display: none">
+            <div id="expoConfirmTitle" class="expo-confirm-title">Cerrá el circuito con el cliente</div>
+            <div id="expoConfirmPinrow" class="expo-confirm-pinrow">
+              <span class="expo-confirm-pinlbl">Clave (PIN) del cliente:</span>
+              <code id="expoConfirmPin" class="expo-confirm-pin">—</code>
+            </div>
+            <div class="expo-confirm-btns">
+              <button
+                type="button"
+                class="success-btn expo-confirm-dl"
+                onclick="descargarPedidoPDF()"
+              >
+                <span class="success-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </span>
+                Descargar pedido
+              </button>
+              <button
+                type="button"
+                id="expoConfirmCopy"
+                class="success-btn expo-confirm-copy"
+                onclick="expoCopiarResumen()"
+              >
+                <span class="success-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </span>
+                Copiar resumen
+              </button>
+              <a
+                id="expoConfirmWa"
+                class="success-btn primary expo-confirm-wa"
+                href="#"
+                target="_blank"
+                rel="noopener"
+              >
+                Escribir al cliente por WhatsApp
+              </a>
+            </div>
+            <div class="success-pdf-note">
+              Tocá <strong>“Escribir al cliente por WhatsApp”</strong>: se abre el chat con el resumen listo para enviar desde el teléfono de ventas. Si preferís pegarlo a mano, usá <strong>“Copiar resumen”</strong>.
+            </div>
+          </div>
     </div>
 
   </div>
 </section>
+
+<!-- ===== MODALES EXPO (portados desde LK; se reparentan a <body> por JS) ===== -->
+
+      <div id="expoPickModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" id="expoPickBackdrop"></div>
+        <div
+          class="modal-card expo-pick-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="expoPickTitle"
+        >
+          <div class="modal-title" id="expoPickTitle">Elegir cliente</div>
+          <input
+            id="expoPickSearch"
+            class="expo-pick-search"
+            type="text"
+            autocomplete="off"
+            placeholder="Cód, razón social, CUIT o dirección de entrega"
+          />
+          <div id="expoPickResults" class="expo-pick-results"></div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="profile-btn subtle"
+              id="expoPickClose"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="expoResumeModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" id="expoResumeBackdrop"></div>
+        <div
+          class="modal-card expo-pick-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="expoResumeTitle"
+        >
+          <div class="modal-title" id="expoResumeTitle">Clientes cargados</div>
+          <p class="expo-pick-sub" style="margin: 0 0 8px">
+            Elegí uno para editar sus datos o completar lo que falte.
+          </p>
+          <div id="expoResumeList" class="expo-pick-results"></div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="profile-btn subtle"
+              id="expoResumeClose"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="expoNewModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" id="expoNewBackdrop"></div>
+        <div
+          class="modal-card expo-new-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="expoNewTitle"
+        >
+          <div class="modal-title" id="expoNewTitle">Nuevo cliente</div>
+
+          <!-- La clave (PIN) se genera sola y NO se muestra acá; va en el
+               resumen/WhatsApp al cerrar el pedido. -->
+          <input id="expoNewPin" type="hidden" />
+
+          <div class="expo-new-grid">
+            <div class="expo-fld expo-sp7">
+              <label class="expo-lbl">Razón social *</label>
+              <input id="expoNewRazon" class="expo-inp" placeholder="Nombre empresa" />
+            </div>
+            <div class="expo-fld expo-sp5">
+              <label class="expo-lbl">CUIT *</label>
+              <input id="expoNewCuit" class="expo-inp" placeholder="30123456789" />
+            </div>
+
+            <!-- Fila: Condición IVA · Vendedor · Cód · WhatsApp · Mail -->
+            <div class="expo-fld expo-sp3">
+              <label class="expo-lbl">Condición de IVA</label>
+              <select id="expoNewCondIva" class="expo-inp">
+                <option value="Responsable Inscripto">Responsable Inscripto</option>
+                <option value="Monotributo">Monotributo</option>
+                <option value="Exento">Exento</option>
+                <option value="Consumidor Final">Consumidor Final</option>
+                <option value="No Categorizado">No Categorizado</option>
+              </select>
+            </div>
+            <div class="expo-fld expo-sp3">
+              <label class="expo-lbl">Vendedor</label>
+              <select id="expoNewVend" class="expo-inp"></select>
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">Cód cliente</label>
+              <input
+                id="expoNewCod"
+                class="expo-inp expo-inp-lock"
+                readonly
+                tabindex="-1"
+                aria-readonly="true"
+                title="Lo asigna el sistema"
+              />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">WhatsApp</label>
+              <input id="expoNewWhatsapp" class="expo-inp" placeholder="5491131181021" />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">Mail</label>
+              <input id="expoNewMail" class="expo-inp" placeholder="mail@ejemplo.com" />
+            </div>
+
+            <!-- Fila: Calle · Número · C.P. · Localidad · Provincia -->
+            <div class="expo-fld expo-sp4">
+              <label class="expo-lbl">Dirección fiscal (calle)</label>
+              <input id="expoNewDirFiscal" class="expo-inp" placeholder="Calle" />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">Número</label>
+              <input id="expoNewNumFiscal" class="expo-inp" placeholder="1234" />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">C.P.</label>
+              <input id="expoNewCpFiscal" class="expo-inp" placeholder="2000" />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">Localidad (fiscal)</label>
+              <input id="expoNewLocFiscal" class="expo-inp" placeholder="Localidad" />
+            </div>
+            <div class="expo-fld expo-sp2">
+              <label class="expo-lbl">Provincia (fiscal)</label>
+              <select id="expoNewProvFiscal" class="expo-inp"></select>
+            </div>
+          </div>
+
+          <div class="expo-addr-block">
+            <div class="expo-addr-head">
+              <span class="expo-lbl">Direcciones de entrega (mín. 1)</span>
+              <div class="expo-addr-head-btns">
+                <button type="button" class="profile-btn subtle" id="expoAddrUseFiscal">
+                  Usar<br />fiscal
+                </button>
+                <button type="button" class="profile-btn subtle" id="expoAddrAdd">
+                  + Agregar
+                </button>
+              </div>
+            </div>
+            <div id="expoAddrList" class="expo-addr-list"></div>
+          </div>
+
+          <div id="expoNewStatus" class="profile-status" aria-live="polite"></div>
+
+          <div class="modal-actions expo-new-actions">
+            <button
+              type="button"
+              class="profile-btn subtle"
+              id="expoNewGoOrder"
+            >
+              Pausar y cargar pedido
+            </button>
+            <button type="button" class="profile-btn expo-btn-done" id="expoNewClose" disabled>
+              Datos completados
+            </button>
+          </div>
+        </div>
+      </div>
 
 <footer class="main-footer">
       <div class="container footer-grid">

@@ -40,6 +40,107 @@ const NOTIFY_NEW_ADDRESS_URL =
  * UI CONSTANTS
  ***********************/
 let WEB_ORDER_DISCOUNT = 0.02; // default fallback
+
+/* ===== EXPO: flags de estado + completitud (portado desde LK) ===== */
+// cualquier cliente del padrón vía "Elegir cliente" o crea uno con "Nuevo cliente".
+const EXPO_MODE = true;
+// Modo cliente-expo: activo cuando el cliente seleccionado es un cliente NUEVO
+// de expo (está en expo_clientes_pendientes). En ese modo el pricing deja de ser
+// "admin/precio lista" y pasa a cliente real: dto por ESCALA (según subtotal de
+// lista, en vivo) + contado (-25%) OBLIGATORIO + web (-2%).
+var _expoClientMode = false;      // cliente NUEVO de expo (escala + contado forzado)
+var _expoActiveCustomer = false;  // hay un cliente REAL seleccionado (mostrar SU precio)
+var _expoClientComplete = false;  // el cliente NUEVO de expo tiene TODOS los datos (salvo expreso)
+var _expoScale = null; // [{desde, dto}] ordenado por desde asc
+
+// Completitud automática de un cliente nuevo de expo: TODOS los campos son
+// obligatorios salvo el Expreso de cada dirección de entrega. Opera sobre una
+// fila de staging (expo_clientes_pendientes) o un objeto con los mismos campos.
+function _expoDatosCompletos(d) {
+  if (!d) return false;
+  var req = [
+    d.business_name, d.cuit, d.condicion_iva, d.vend, d.whatsapp, d.mail,
+    d.direccion, d.numero, d.cp, d.localidad, d.provincia,
+  ];
+  for (var i = 0; i < req.length; i++) {
+    if (!String(req[i] == null ? "" : req[i]).trim()) return false;
+  }
+  var dirs = Array.isArray(d.direcciones_entrega) ? d.direcciones_entrega : [];
+  if (!dirs.length) return false;
+  for (var j = 0; j < dirs.length; j++) {
+    var a = dirs[j] || {};
+    // Expreso NO es obligatorio (puede no haber uno fijo).
+    if (
+      !String(a.direccion || "").trim() ||
+      !String(a.localidad || "").trim() ||
+      !String(a.provincia || "").trim()
+    )
+      return false;
+  }
+  return true;
+}
+
+// Lista legible de lo que falta (para avisar al confirmar "Datos completados").
+function _expoFaltantes(d) {
+  var out = [];
+  var map = [
+    ["business_name", "Razón social"], ["cuit", "CUIT"],
+    ["condicion_iva", "Condición IVA"], ["vend", "Vendedor"],
+    ["whatsapp", "WhatsApp"], ["mail", "Mail"], ["direccion", "Calle"],
+    ["numero", "Número"], ["cp", "C.P."], ["localidad", "Localidad"],
+    ["provincia", "Provincia"],
+  ];
+  map.forEach(function (m) {
+    if (!String(d[m[0]] == null ? "" : d[m[0]]).trim()) out.push(m[1]);
+  });
+  var dirs = Array.isArray(d.direcciones_entrega) ? d.direcciones_entrega : [];
+  if (!dirs.length) out.push("una dirección de entrega");
+  else {
+    var bad = false;
+    dirs.forEach(function (a) {
+      a = a || {};
+      if (
+        !String(a.direccion || "").trim() ||
+        !String(a.localidad || "").trim() ||
+        !String(a.provincia || "").trim()
+      )
+        bad = true;
+    });
+    if (bad) out.push("dirección de entrega (calle/localidad/provincia)");
+  }
+  return out;
+}
+
+// Lee el formulario de alta a la forma que consumen _expoDatosCompletos/_expoFaltantes.
+function _expoReadFormData() {
+  function v(id) {
+    var e = document.getElementById(id);
+    return e ? String(e.value || "").trim() : "";
+  }
+  return {
+    business_name: v("expoNewRazon"),
+    cuit: v("expoNewCuit").replace(/[^0-9]/g, ""),
+    condicion_iva: v("expoNewCondIva"),
+    vend: v("expoNewVend"),
+    whatsapp: v("expoNewWhatsapp"),
+    mail: v("expoNewMail"),
+    direccion: v("expoNewDirFiscal"),
+    numero: v("expoNewNumFiscal"),
+    cp: v("expoNewCpFiscal"),
+    localidad: v("expoNewLocFiscal"),
+    provincia: v("expoNewProvFiscal"),
+    direcciones_entrega: _expoAddrCollect(),
+  };
+}
+
+// Habilita el botón "Datos completados" (verde) SOLO cuando está todo completo
+// (incluida la sucursal; el único opcional es el expreso). Corre en vivo.
+function _expoNewSyncComplete() {
+  var btn = document.getElementById("expoNewClose");
+  if (!btn) return;
+  btn.disabled = !_expoDatosCompletos(_expoReadFormData());
+}
+
 const BASE_IMG = `${SUPABASE_URL}/storage/v1/object/public/products-images/`;
 const IMG_PARAMS = `?width=400&height=400&resize=contain&quality=75`;
 const IMG_VERSION = (window.LK_CONFIG && window.LK_CONFIG.IMG_VERSION) || "9999-12-31-2";
@@ -111,6 +212,8 @@ let currentSession = null; // sesión supabase
 let isAdmin = false; // admin flag
 let customerProfile = null; // {id, business_name, dto_vol, ...}
 function isListPriceOnlyClient() {
+  // EXPO: con un cliente real seleccionado, NO es precio-lista (muestra su precio).
+  if (_expoActiveCustomer) return false;
   return isAdmin || String(customerProfile?.cod_cliente) === "5000";
 }
 
@@ -520,6 +623,7 @@ async function logout() {
     localStorage.removeItem("lk_vendor_selected_cod_cliente");
     localStorage.removeItem("lk_vendor_selected_business_name");
     localStorage.removeItem("lk_vendor_selected_dto_vol");
+    localStorage.removeItem("lk_expo_selected_client"); // EXPO
 
     // Vaciar carrito
     cart.length = 0;
@@ -683,7 +787,8 @@ function hasVendorSelection() {
 
 function getDtoVol() {
   // Si un admin/vendedor seleccionó un cliente, usar el dto del cliente
-  if (isAdmin && !hasVendorSelection()) return 0;
+  // EXPO: con un cliente de expo activo, usar SU dto (escala o real), no 0.
+  if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 0;
   return Number(customerProfile?.dto_vol || 0);
 }
 
@@ -696,7 +801,8 @@ function unitYourPrice(listPrice) {
  * MÉTODO DE PAGO
  ***********************/
 function getPaymentDiscount() {
-  if (isAdmin && !hasVendorSelection()) return 0;
+  if (_expoClientMode) return 0.25; // EXPO cliente nuevo: contado -25% forzado
+  if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 0;
 
   const sel = $("paymentSelect");
   if (!sel) return 0;
@@ -706,7 +812,8 @@ function getPaymentDiscount() {
 }
 
 function getPaymentMethodText() {
-  if (isAdmin && !hasVendorSelection()) return "Contado";
+  if (_expoClientMode) return "Contado"; // EXPO cliente nuevo
+  if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return "Contado";
 
   const sel = $("paymentSelect");
   if (!sel) return "";
@@ -716,7 +823,8 @@ function getPaymentMethodText() {
 }
 
 function getPaymentMethodCode() {
-  if (isAdmin && !hasVendorSelection()) return 10;
+  if (_expoClientMode) return 10; // EXPO cliente nuevo: Contado -25% (código CHEF)
+  if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 10;
 
   const sel = $("paymentSelect");
   const v = sel ? String(sel.value) : "";
@@ -3372,6 +3480,8 @@ function renderProducts() {
   const container = $("productsContainer");
   if (!container) return;
 
+  _expoSyncDto(); // EXPO: dto por escala según carrito, antes de pintar precios
+
   // ✨ Sync carrusel de novedades en cada render (mantiene qty en cart sincronizada)
   try {
     renderNewProductsCarousel();
@@ -4165,7 +4275,7 @@ function toggleControls(productId, show) {
 function calcTotals() {
   const logged = !!currentSession;
   const paymentDiscount = getPaymentDiscount();
-  const webDiscountRate = (isAdmin && !hasVendorSelection()) ? 0 : WEB_ORDER_DISCOUNT;
+  const webDiscountRate = (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) ? 0 : WEB_ORDER_DISCOUNT;
 
   let subtotal = 0;
 
@@ -4212,6 +4322,9 @@ function calcTotals() {
 function updateCart() {
   const cartDiv = $("cart");
   if (!cartDiv) return;
+
+  _expoSyncDto();    // EXPO: recalcula dto por escala según el carrito actual
+  _expoUpdateChip(); // EXPO: repinta el chip del cliente activo
 
   const submitBtn = document.getElementById("submitOrderBtn");
 
@@ -4853,6 +4966,12 @@ async function submitOrder() {
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
     }
 
+    // EXPO: defensa en profundidad — no enviar un cliente NUEVO de expo incompleto.
+    if (_expoClientMode && !_expoClientComplete) {
+      setOrderStatus("Faltan datos del cliente nuevo para confirmar el pedido.", "err");
+      window.__submittingOrder = false; setSubmitOrderLoading(false); return;
+    }
+
     if (!customerProfile?.id) {
       setOrderStatus("No se encontró el perfil del cliente.", "err");
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
@@ -5115,6 +5234,15 @@ async function submitOrder() {
 
     showSection("pedidoConfirmado");
     playSuccessAnimation();
+    // EXPO: mostrar el N° de pedido en pantalla (prueba de que quedó grabado).
+    try {
+      var _onEl = document.getElementById("successOrderNum");
+      if (_onEl) {
+        _onEl.textContent = orderId ? "Pedido N° " + orderId : "";
+        _onEl.style.display = orderId ? "" : "none";
+      }
+    } catch (e) {}
+    _expoShowConfirmPanel(); // EXPO: panel de cierre (descargar/copiar/WhatsApp) + PIN
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     // Enviar a Sheets con retry en background
@@ -5180,13 +5308,19 @@ function refreshSubmitEnabled() {
   const paySel = document.getElementById("paymentSelect");
 
   const hasShipping = !!(shipSel && String(shipSel.value || "").trim()) && deliveryConfirmed;
-  const hasPayment = (isAdmin && !hasVendorSelection())
+  // EXPO: con un cliente de expo activo se exige método de pago como en la web normal.
+  const hasPayment = (isAdmin && !hasVendorSelection() && !(EXPO_MODE && _expoActiveCustomer))
     ? true
     : !!(paySel && String(paySel.value || "").trim());
   const custSel = document.getElementById("customerSelect");
   const hasCustomer = !isVendorProfile() || !!(custSel && String(custSel.value || "").trim());
 
-  btn.disabled = !(hasShipping && hasPayment && hasCustomer);
+  // EXPO: bloquear el envío si el cliente NUEVO de expo está incompleto (salvo expreso).
+  const expoOk = !(_expoClientMode && !_expoClientComplete);
+  var expoGate = document.getElementById("expoOrderGate");
+  if (expoGate) expoGate.style.display = expoOk ? "none" : "block";
+
+  btn.disabled = !(hasShipping && hasPayment && hasCustomer && expoOk);
 
   // (opcional) feedback visual simple
   btn.classList.toggle("is-disabled", btn.disabled);
@@ -6146,12 +6280,1352 @@ function onAnyCustomerSelectChange(e) {
   onLinkedCustomerSelected();
 }
 
+/* ===================================================================
+   MÓDULO EXPO — portado desde LK (pagina-LK-copia).
+   Entrada 'Elegir cliente' / 'Nuevo cliente', pricing por escala,
+   staging de clientes nuevos, panel de cierre. Sin Línea Loke (no existe en chef).
+   =================================================================== */
+/***********************
+ * EXPO — entrada "Elegir cliente" / "Nuevo cliente"
+ * Reemplaza el selector "Elegir razón social" en esta copia.
+ ***********************/
+var _expoPickWired = false;
+var _expoSearchTimer = null;
+
+function _expoEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+
+// Carga la escala de descuento por volumen (una vez).
+async function _expoLoadScale() {
+  if (_expoScale) return _expoScale;
+  try {
+    var r = await supabaseClient
+      .from("expo_dto_escala")
+      .select("desde,dto")
+      .order("desde", { ascending: true });
+    _expoScale = r.error ? [] : (r.data || []);
+  } catch (e) {
+    _expoScale = [];
+  }
+  return _expoScale;
+}
+
+// Subtotal de LISTA del carrito (sin dto): base para elegir el tramo.
+function _expoListSubtotal() {
+  var s = 0;
+  (cart || []).forEach(function (item) {
+    var p = products.find(function (x) { return String(x.id) === String(item.productId); });
+    if (!p) return;
+    s += Number(p.list_price || 0) * (item.qtyCajas * Number(p.uxb || 0));
+  });
+  return s;
+}
+
+// dto (fracción) que corresponde a un subtotal según la escala.
+function _expoScaleDtoFor(sub) {
+  if (!_expoScale || !_expoScale.length) return 0;
+  var dto = 0;
+  _expoScale.forEach(function (t) {
+    if (sub >= Number(t.desde)) dto = Number(t.dto);
+  });
+  return dto;
+}
+
+// Sincroniza el dto del cliente-expo con la escala según el carrito actual.
+// Lo escribe en customerProfile.dto_vol para que TODO el pricing lo lea igual.
+function _expoSyncDto() {
+  if (!_expoClientMode || !customerProfile) return;
+  customerProfile.dto_vol = _expoScaleDtoFor(_expoListSubtotal());
+  _expoRenderCheckpoints();
+}
+
+// Garantiza que el <select> oculto tenga la <option> del cliente elegido.
+// Ese value lo leen onLinkedCustomerSelected y el gate de confirmación.
+function _expoEnsureOption(id, label) {
+  var sel = document.getElementById("customerSelect");
+  if (!sel) return;
+  if (!sel.querySelector('option[value="' + id + '"]')) {
+    var o = document.createElement("option");
+    o.value = id;
+    o.textContent = label || "";
+    sel.appendChild(o);
+  }
+}
+
+function _expoNextTier(sub) {
+  if (!_expoScale) return null;
+  for (var i = 0; i < _expoScale.length; i++) {
+    if (Number(_expoScale[i].desde) > sub) {
+      return { dto: Number(_expoScale[i].dto), falta: Number(_expoScale[i].desde) - sub };
+    }
+  }
+  return null;
+}
+
+function _expoMoney(n) {
+  try {
+    return Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+  } catch (e) {
+    return String(Math.round(Number(n || 0)));
+  }
+}
+
+// Monto compacto para las etiquetas de los checkpoints: 600000 → $600k, 1500000 → $1,5M.
+function _expoCompact(n) {
+  n = Number(n) || 0;
+  if (n >= 1000000) {
+    var m = n / 1000000;
+    return "$" + (m % 1 === 0 ? m : m.toFixed(1).replace(".", ",")) + "M";
+  }
+  if (n >= 1000) return "$" + Math.round(n / 1000) + "k";
+  return "$" + n;
+}
+
+// Barra de "checkpoints": muestra los tramos de la escala como hitos, el progreso
+// del pedido (lista) y cuánto falta para el próximo tramo. Solo para cliente nuevo.
+function _expoRenderCheckpoints() {
+  var cp = document.getElementById("expoCheckpoints");
+  if (!cp) return;
+  if (!_expoClientMode || !_expoScale || !_expoScale.length) {
+    cp.style.display = "none";
+    return;
+  }
+  var tiers = _expoScale.slice().sort(function (a, b) {
+    return Number(a.desde) - Number(b.desde);
+  });
+  var sub = _expoListSubtotal();
+  var n = tiers.length;
+  var curIdx = 0;
+  for (var i = 0; i < n; i++) if (sub >= Number(tiers[i].desde)) curIdx = i;
+  var pos = function (i) { return n <= 1 ? 100 : (i / (n - 1)) * 100; };
+  var fillFrac;
+  if (curIdx >= n - 1) {
+    fillFrac = 100;
+  } else {
+    var a = Number(tiers[curIdx].desde), b = Number(tiers[curIdx + 1].desde);
+    var prog = b > a ? Math.min(1, Math.max(0, (sub - a) / (b - a))) : 0;
+    fillFrac = pos(curIdx) + prog * (pos(curIdx + 1) - pos(curIdx));
+  }
+  var steps = "";
+  tiers.forEach(function (t, i) {
+    var cls = i < curIdx ? "done" : i === curIdx ? "current" : "todo";
+    steps +=
+      '<div class="expo-cp-step ' + cls + '" style="left:' + pos(i) + '%">' +
+      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * 100) + "%</span>" +
+      '<span class="expo-cp-dot"></span>' +
+      '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
+      "</div>";
+  });
+  var next = _expoNextTier(sub);
+  var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
+  var right = next
+    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
+    : "<b>Descuento máximo alcanzado</b>";
+  cp.innerHTML =
+    '<div class="expo-cp-head">' +
+      '<span class="expo-cp-title">Descuento por volumen · <b>' + curDto + "%</b></span>" +
+      '<span class="expo-cp-sub">Pedido (lista): <b>$' + _expoMoney(sub) + "</b></span>" +
+      '<span class="expo-cp-next">' + right + "</span>" +
+    "</div>" +
+    '<div class="expo-cp-track">' +
+      '<div class="expo-cp-fill" style="width:' + fillFrac + '%"></div>' +
+      steps +
+    "</div>";
+  cp.style.display = "";
+}
+
+function _expoUpdateChip() {
+  var chip = document.getElementById("expoCurrentChip");
+  if (!chip) return;
+  if (!(customerProfile && customerProfile.id && customerProfile.business_name)) {
+    chip.textContent = "Sin cliente seleccionado";
+    chip.classList.remove("has-client");
+    return;
+  }
+  var dto = Number(customerProfile.dto_vol || 0);
+  var name =
+    '<span class="expo-chip-name">' + _expoEsc(customerProfile.business_name) + "</span>";
+  var inner;
+  if (_expoClientMode) {
+    // El detalle del dto por volumen se muestra en la barra de checkpoints.
+    var estado = _expoClientComplete
+      ? '<span class="expo-chip-ok">✓ Datos completos</span>'
+      : '<span class="expo-chip-falta">Faltan datos</span>';
+    inner = name + '<span class="expo-chip-meta">Contado 1ª compra · ' + estado + "</span>";
+  } else {
+    inner =
+      name +
+      '<span class="expo-chip-meta">Cód ' +
+      _expoEsc(customerProfile.cod_cliente || "—") +
+      (dto > 0 ? " · Dto " + Math.round(dto * 100) + "%" : "") +
+      "</span>";
+  }
+  // La cruz (soltar cliente) solo cuando hay un cliente ELEGIDO/NUEVO de expo,
+  // NO en el perfil propio del operador (ahí no hay nada que soltar).
+  var cruz = _expoActiveCustomer
+    ? '<button type="button" class="expo-chip-clear" title="Soltar cliente y volver a tu perfil" ' +
+      'onclick="expoClearCustomer()">&times;</button>'
+    : "";
+  chip.innerHTML = '<div class="expo-chip-text">' + inner + "</div>" + cruz;
+  chip.classList.add("has-client");
+  _expoRenderCheckpoints();
+  _expoRefreshResumeBtn();
+}
+
+function renderExpoEntryBar() {
+  var bar = document.createElement("div");
+  bar.id = "customerSelectorBanner";
+  bar.className = "customer-selector-banner expo-entry-bar";
+  bar.innerHTML =
+    '<div class="expo-current" id="expoCurrentChip">Sin cliente seleccionado</div>' +
+    '<div class="expo-entry-actions">' +
+    '<button type="button" class="expo-btn expo-btn-pick" id="expoElegirBtn">Elegir cliente</button>' +
+    '<button type="button" class="expo-btn expo-btn-new" id="expoNuevoBtn">+ Nuevo cliente</button>' +
+    '<button type="button" class="expo-btn expo-btn-resume" id="expoContinuarBtn" style="display:none">Continuar carga pausada</button>' +
+    "</div>" +
+    '<select id="customerSelect" class="expo-hidden-select" tabindex="-1" aria-hidden="true"><option value=""></option></select>';
+
+  var section = document.getElementById("productos");
+  var anchorRow = null;
+  if (section) {
+    var sortRow = section.querySelector(".sort-row");
+    if (sortRow) {
+      sortRow.insertBefore(bar, sortRow.firstChild);
+      anchorRow = sortRow;
+    } else {
+      var titleRow = section.querySelector(".section-title-row");
+      if (titleRow) { titleRow.parentNode.insertBefore(bar, titleRow.nextSibling); anchorRow = titleRow; }
+      else section.insertBefore(bar, section.firstChild);
+    }
+  }
+
+  // Barra de checkpoints del dto por volumen (full-width, debajo de la fila).
+  var cp = document.getElementById("expoCheckpoints");
+  if (!cp) {
+    cp = document.createElement("div");
+    cp.id = "expoCheckpoints";
+    cp.className = "expo-cp-wrap";
+    cp.style.display = "none";
+  }
+  if (anchorRow && anchorRow.parentNode) {
+    anchorRow.parentNode.insertBefore(cp, anchorRow.nextSibling);
+  } else if (section) {
+    section.insertBefore(cp, section.firstChild);
+  }
+
+  // Si ya hay un cliente activo, reflejarlo en el select oculto + chip.
+  if (customerProfile && customerProfile.id) {
+    _expoEnsureOption(customerProfile.id, customerProfile.business_name);
+    var selNow = document.getElementById("customerSelect");
+    if (selNow) selNow.value = customerProfile.id;
+    _expoUpdateChip();
+  }
+
+  var elegirBtn = document.getElementById("expoElegirBtn");
+  var nuevoBtn = document.getElementById("expoNuevoBtn");
+  var contBtn = document.getElementById("expoContinuarBtn");
+  if (elegirBtn) elegirBtn.addEventListener("click", expoOpenPickModal);
+  if (nuevoBtn) nuevoBtn.addEventListener("click", expoNuevoCliente);
+  if (contBtn) contBtn.addEventListener("click", expoOpenResumeModal);
+
+  _expoWirePickModal();
+  _expoWireResumeModal();
+  // Mostrar "Continuar carga pausada" solo si hay clientes en staging.
+  _expoRefreshResumeBtn();
+}
+
+// Muestra/oculta el botón "Continuar carga pausada" según haya pendientes.
+async function _expoRefreshResumeBtn() {
+  var btn = document.getElementById("expoContinuarBtn");
+  if (!btn) return;
+  // En el perfil propio del operador (sin cliente de expo elegido) NO mostrar el
+  // botón: siempre hay clientes en staging y aparecería permanentemente. Solo se
+  // ve con un cliente de expo activo (para editarlo/completarlo).
+  if (!_expoActiveCustomer || !_expoClientMode) {
+    btn.style.display = "none";
+    return;
+  }
+  try {
+    var r = await supabaseClient
+      .from("expo_clientes_pendientes")
+      .select("business_name,cuit,condicion_iva,vend,whatsapp,mail,direccion,numero,cp,localidad,provincia,direcciones_entrega")
+      .eq("estado", "pendiente");
+    // Re-chequear: mientras esperábamos, el operador pudo soltar el cliente y
+    // volver a su perfil (race). Si ya no hay cliente activo, ocultar.
+    if (!_expoActiveCustomer || !_expoClientMode) {
+      btn.style.display = "none";
+      return;
+    }
+    if (r.error || !r.data || !r.data.length) {
+      btn.style.display = "none";
+      return;
+    }
+    var incompletos = r.data.filter(function (d) {
+      return !_expoDatosCompletos(d);
+    }).length;
+    btn.style.display = "";
+    if (incompletos > 0) {
+      // Hay clientes con datos a medias → "Continuar carga pausada".
+      btn.classList.add("expo-btn-resume");
+      btn.classList.remove("expo-btn-resume-done");
+      btn.textContent = "Continuar carga pausada (" + incompletos + ")";
+    } else {
+      // Cliente activo completo → editar solo ese (los viejos completos no se listan).
+      btn.classList.remove("expo-btn-resume");
+      btn.classList.add("expo-btn-resume-done");
+      btn.textContent = "✓ Editar cliente";
+    }
+  } catch (e) {
+    btn.style.display = "none";
+  }
+}
+
+// EXPO: panel de cierre en la confirmación. El operador manda el resumen por
+// WhatsApp desde el teléfono de ventas (botón wa.me) — NO lo manda un bot solo.
+// Aparece para CUALQUIER cliente expo (nuevo o ya elegido), no solo los nuevos.
+// El PIN sólo se muestra para clientes NUEVOS (modo cliente-expo).
+var _expoConfirmMsg = ""; // resumen armado, para el botón "Copiar resumen"
+async function _expoShowConfirmPanel() {
+  var panel = document.getElementById("expoConfirmPanel");
+  if (!panel) return;
+  var stdWrap = document.querySelector(".success-download-wrap");
+  // Sólo tiene sentido en modo expo con un cliente activo (nuevo o elegido).
+  var esExpo =
+    EXPO_MODE && (_expoClientMode || _expoActiveCustomer);
+  if (!esExpo || !lastConfirmedOrder || !(customerProfile && customerProfile.id)) {
+    panel.style.display = "none";
+    _expoConfirmMsg = "";
+    if (stdWrap) stdWrap.style.display = ""; // cliente normal: descarga estándar visible
+    return;
+  }
+  var esClienteNuevo = !!_expoClientMode;
+  // El panel trae su propio botón de descarga → ocultar el estándar
+  if (stdWrap) stdWrap.style.display = "none";
+  var pin = "", wsp = "";
+  try {
+    var r = await supabaseClient
+      .from("customers")
+      .select("pin,whatsapp")
+      .eq("id", customerProfile.id)
+      .maybeSingle();
+    if (r.data) {
+      pin = r.data.pin || "";
+      wsp = r.data.whatsapp || "";
+    }
+  } catch (e) { /* ignore */ }
+
+  // Título + fila del PIN según sea cliente nuevo o ya existente.
+  var titleEl = document.getElementById("expoConfirmTitle");
+  var pinrowEl = document.getElementById("expoConfirmPinrow");
+  if (titleEl) {
+    titleEl.textContent = esClienteNuevo
+      ? "Cliente nuevo — cerrá el circuito"
+      : "Enviá la confirmación al cliente";
+  }
+  if (pinrowEl) pinrowEl.style.display = esClienteNuevo ? "" : "none";
+  var pinEl = document.getElementById("expoConfirmPin");
+  if (pinEl) pinEl.textContent = pin || "—";
+
+  // ---- Resumen del pedido ----
+  var dtoPct = Math.round(Number(lastConfirmedOrder.dtoVol || 0) * 100);
+  var total = _expoMoney(lastConfirmedOrder.total || 0);
+  var msg =
+    "¡Tu pedido fue confirmado! ✅\n\n" +
+    "Hola " + (lastConfirmedOrder.customerName || "") +
+    ", te paso el resumen de tu pedido en Chef:\n\n" +
+    "Pedido N° " + (lastConfirmedOrder.orderId || "") + "\n" +
+    "Total: $" + total + " + IVA\n" +
+    "Descuento por volumen otorgado: " + dtoPct + "%\n";
+  if (esClienteNuevo) {
+    msg +=
+      "Pago: Contado (1ra compra)\n\n" +
+      "Para tus próximos pedidos online:\n" +
+      "Usuario: tu CUIT\n" +
+      "Clave: " + (pin || "(a definir)") + "\n\n";
+  } else {
+    msg += "\n";
+  }
+  msg += "¡Gracias por tu compra!";
+  _expoConfirmMsg = msg;
+
+  var waBtn = document.getElementById("expoConfirmWa");
+  if (waBtn) {
+    var num = String(wsp).replace(/[^0-9]/g, "");
+    // Si el cliente no tiene WhatsApp cargado, wa.me igual abre el selector de
+    // contacto con el texto pre-cargado; el operador elige a quién mandarlo.
+    waBtn.href = "https://wa.me/" + num + "?text=" + encodeURIComponent(msg);
+  }
+  // Reset visual del botón "Copiar resumen" por si quedó en estado "copiado".
+  var copyBtn = document.getElementById("expoConfirmCopy");
+  if (copyBtn) copyBtn.classList.remove("expo-copied");
+  panel.style.display = "";
+}
+
+// EXPO: copia el resumen del pedido al portapapeles (fallback para pegarlo a mano).
+async function expoCopiarResumen() {
+  var txt = _expoConfirmMsg || "";
+  if (!txt) return;
+  var ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(txt);
+      ok = true;
+    }
+  } catch (e) { /* fallback abajo */ }
+  if (!ok) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e2) { /* nada */ }
+  }
+  var btn = document.getElementById("expoConfirmCopy");
+  if (btn) {
+    var prev = btn.dataset.origHtml || btn.innerHTML;
+    btn.dataset.origHtml = prev;
+    btn.classList.add("expo-copied");
+    btn.innerHTML = ok ? "✓ Resumen copiado" : "No se pudo copiar";
+    setTimeout(function () {
+      btn.classList.remove("expo-copied");
+      btn.innerHTML = btn.dataset.origHtml || prev;
+    }, 1800);
+  }
+}
+
+function expoOpenPickModal() {
+  var m = document.getElementById("expoPickModal");
+  if (!m) return;
+  m.classList.add("open"); // ✅ clave: .modal se muestra con .open, no quitando .hidden
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+  var inp = document.getElementById("expoPickSearch");
+  var res = document.getElementById("expoPickResults");
+  if (inp) inp.value = "";
+  if (res)
+    res.innerHTML =
+      '<div class="expo-pick-hint">Escribí cód, razón social, CUIT o dirección…</div>';
+  if (inp) setTimeout(function () { inp.focus(); }, 30);
+}
+
+function expoClosePickModal() {
+  var m = document.getElementById("expoPickModal");
+  if (!m) return;
+  m.classList.remove("open");
+  m.classList.add("hidden");
+  m.setAttribute("aria-hidden", "true");
+}
+
+async function _expoRunSearch() {
+  var inp = document.getElementById("expoPickSearch");
+  var res = document.getElementById("expoPickResults");
+  if (!inp || !res) return;
+  var q = inp.value.trim();
+  if (q.length < 2) {
+    res.innerHTML =
+      '<div class="expo-pick-hint">Escribí al menos 2 caracteres…</div>';
+    return;
+  }
+  res.innerHTML = '<div class="expo-pick-hint">Buscando…</div>';
+  var r = await supabaseClient.rpc("buscar_cliente_expo", { p_q: q });
+  // El input pudo cambiar mientras esperábamos: descartar respuesta vieja.
+  if (inp.value.trim() !== q) return;
+  if (r.error) {
+    res.innerHTML =
+      '<div class="expo-pick-hint expo-pick-err">Error: ' +
+      _expoEsc(r.error.message) +
+      "</div>";
+    return;
+  }
+  var rows = r.data || [];
+  if (!rows.length) {
+    res.innerHTML =
+      '<div class="expo-pick-hint">Sin resultados para "' +
+      _expoEsc(q) +
+      '"</div>';
+    return;
+  }
+  var html = "";
+  rows.forEach(function (c) {
+    var dto = Number(c.dto_vol || 0);
+    html +=
+      '<button type="button" class="expo-pick-row" data-id="' +
+      c.id +
+      '"><span class="expo-pick-name">' +
+      _expoEsc(c.business_name) +
+      '</span><span class="expo-pick-sub">Cód ' +
+      _expoEsc(c.cod_cliente || "—") +
+      (c.cuit ? " · CUIT " + _expoEsc(c.cuit) : "") +
+      (dto > 0 ? " · Dto " + Math.round(dto * 100) + "%" : "") +
+      "</span>" +
+      (c.direccion
+        ? '<span class="expo-pick-dir">' +
+          _expoEsc(c.direccion) +
+          (c.localidad ? " · " + _expoEsc(c.localidad) : "") +
+          "</span>"
+        : "") +
+      "</button>";
+  });
+  res.innerHTML = html;
+  res.querySelectorAll(".expo-pick-row").forEach(function (row) {
+    row.addEventListener("click", function () {
+      var cust = rows.find(function (x) {
+        return String(x.id) === row.dataset.id;
+      });
+      if (cust) expoApplyCustomer(cust);
+    });
+  });
+}
+
+async function expoApplyCustomer(cust, opts) {
+  opts = opts || {};
+  // Registrar en linkedCustomers para que el resto del flujo lo reconozca.
+  if (
+    !(linkedCustomers || []).some(function (c) {
+      return String(c.customer_id) === String(cust.id);
+    })
+  ) {
+    linkedCustomers.push({
+      customer_id: cust.id,
+      cod_cliente: cust.cod_cliente,
+      business_name: cust.business_name,
+      dto_vol: cust.dto_vol,
+      vend: cust.vend,
+    });
+  }
+  _expoEnsureOption(cust.id, cust.business_name);
+  var sel = document.getElementById("customerSelect");
+  if (sel) sel.value = cust.id;
+  expoClosePickModal();
+
+  // Hay un cliente real seleccionado: mostrar SUS precios (dto + web), no lista.
+  _expoActiveCustomer = true;
+
+  // ¿Es cliente NUEVO de expo? (forzado desde el alta, o presente en staging).
+  // Solo esos entran en "modo cliente-expo" (escala + contado obligatorio + web).
+  // En la misma consulta traemos los campos para calcular la COMPLETITUD (auto).
+  _expoClientMode = !!opts.forceExpoNew;
+  _expoClientComplete = false;
+  try {
+    var st = await supabaseClient
+      .from("expo_clientes_pendientes")
+      .select("business_name,cuit,condicion_iva,vend,whatsapp,mail,direccion,numero,cp,localidad,provincia,direcciones_entrega")
+      .eq("customer_id", cust.id)
+      .eq("estado", "pendiente")
+      .order("actualizado_at", { ascending: false })
+      .limit(1);
+    if (!st.error && st.data && st.data.length) {
+      _expoClientMode = true; // presente en staging = cliente de expo
+      _expoClientComplete = _expoDatosCompletos(st.data[0]);
+    }
+  } catch (e) { /* si falla, queda incompleto (bloquea envío por las dudas) */ }
+  if (_expoClientMode) await _expoLoadScale();
+
+  await onLinkedCustomerSelected({ customerId: cust.id, isRestore: !!opts.fromRestore });
+
+  // Persistir el cliente elegido de expo en su propia clave, para restaurarlo al
+  // volver de historial/sugerencias (que recargan la página): el cliente puede
+  // venir del padrón y NO estar en linkedCustomers, así que la restauración
+  // normal (que busca dentro de linkedCustomers) no lo encuentra.
+  if (!opts.fromRestore) {
+    try {
+      localStorage.setItem(
+        "lk_expo_selected_client",
+        JSON.stringify({
+          id: cust.id,
+          cod_cliente: cust.cod_cliente,
+          business_name: cust.business_name,
+          dto_vol: cust.dto_vol,
+          vend: cust.vend,
+          expoClientMode: _expoClientMode,
+        }),
+      );
+    } catch (e) {}
+  }
+
+  if (_expoClientMode) {
+    // Forzar contado en la UI de pago (el cálculo ya lo fuerza igual).
+    var paySel = document.getElementById("paymentSelect");
+    if (paySel) paySel.value = "0.25";
+    _expoSyncDto();
+    updateCart();
+    renderProducts();
+  }
+  _expoUpdateChip();
+}
+
+// EXPO: soltar el cliente elegido y volver al perfil del operador (admin).
+// Evita quedarse "pegado" a un cliente que no se terminó de fijar.
+function expoClearCustomer() {
+  if (cart && cart.length > 0) {
+    if (
+      !window.confirm(
+        "Vas a soltar al cliente y volver a tu perfil. El pedido en curso (" +
+          cart.length +
+          " ítem/s) se vacía. ¿Continuar?",
+      )
+    )
+      return;
+    cart.splice(0, cart.length);
+    if (typeof saveCartToLS === "function") saveCartToLS();
+  }
+  try {
+    localStorage.removeItem("lk_expo_selected_client");
+  } catch (e) {}
+  _expoActiveCustomer = false;
+  _expoClientMode = false;
+  _expoClientComplete = false;
+  var sel = document.getElementById("customerSelect");
+  if (sel) sel.value = VENDOR_SELF_VALUE;
+  // Restaurar el perfil propio del operador (misma vía que "Perfil Vendedor").
+  Promise.resolve(
+    onLinkedCustomerSelected({ customerId: VENDOR_SELF_VALUE, isRestore: true }),
+  ).then(function () {
+    _expoUpdateChip();
+    if (typeof updateCart === "function") updateCart();
+    if (typeof renderProducts === "function") renderProducts();
+    if (typeof refreshSubmitEnabled === "function") refreshSubmitEnabled();
+  });
+}
+window.expoClearCustomer = expoClearCustomer;
+window.expoCopiarResumen = expoCopiarResumen;
+
+// ---- EXPO: Nuevo cliente (Fase 2) ----
+// Estado del alta en curso: permite pausar (guardar parcial) y volver a editar.
+var _expoNewState = { id: null, authId: null };
+var _expoNewWired = false;
+
+// PIN de 6 DÍGITOS: es el password del login del cliente (CUIT + PIN) y la tabla
+// customers tiene el constraint customers_pin_6_digits (pin ~ '^\d{6}$').
+function _expoNewGenPin() {
+  var r = "";
+  for (var i = 0; i < 6; i++) r += String(Math.floor(Math.random() * 10));
+  return r;
+}
+
+// Crea el usuario auth con un cliente aparte (no pisa la sesión del operador).
+async function _expoCreateAuthUser(cuit, pin) {
+  var digits = String(cuit || "").replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  var email = digits + "@cuit.loekemeyer";
+  var tmp = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  var res = await tmp.auth.signUp({ email: email, password: pin });
+  if (res.error) {
+    if (res.error.message.toLowerCase().includes("already registered")) {
+      var lg = await tmp.auth.signInWithPassword({ email: email, password: pin });
+      if (!lg.error && lg.data.user) return lg.data.user.id;
+    }
+    console.warn("expo auth signup:", res.error.message);
+    return null;
+  }
+  return res.data.user ? res.data.user.id : null;
+}
+
+function _expoNewStatus(msg, kind) {
+  var el = document.getElementById("expoNewStatus");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.color = kind === "err" ? "#b91c1c" : kind === "ok" ? "#166534" : "#6b7280";
+}
+
+// Provincias argentinas (24 jurisdicciones) para los desplegables del alta.
+var EXPO_PROVINCIAS = [
+  "Buenos Aires", "Ciudad Autónoma de Buenos Aires", "Catamarca", "Chaco",
+  "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy",
+  "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro",
+  "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe",
+  "Santiago del Estero", "Tierra del Fuego", "Tucumán",
+];
+function _expoProvinciaOptions(selected) {
+  var out = '<option value="">Provincia</option>';
+  EXPO_PROVINCIAS.forEach(function (p) {
+    out +=
+      '<option value="' + p + '"' +
+      (String(selected || "") === p ? " selected" : "") +
+      ">" + p + "</option>";
+  });
+  return out;
+}
+
+// Expresos/transportistas TAL CUAL están cargados en ISIS (última columna del
+// export de sucursales). El campo Expreso autocompleta contra esta lista para
+// que se elija el nombre EXACTO y la importación al ERP no falle por un typo.
+var EXPO_EXPRESOS = [
+  "11 de Marzo", "4H S.R.L.", "7 de Agosto", "AG Distribuciones Cordoba", "AGUILAR", "ALBO",
+  "ALCUVA", "ALEX", "ALONSO", "Alta Cba Encomiendas", "ALVEAR SUR", "AMANES", "AMICCI",
+  "ANDESMAR", "Andina HC SRL", "ANDINA HNOS", "ARAVERA", "ARIAS (COMODORO)",
+  "ARIAS (SANTA FE)", "ARNES", "ASCENCIO", "Astutti", "AVELLANEDA", "AZUL",
+  "BAIRES MATADEROS", "BALUT", "BARILOCHE", "BBB Express", "BELGRANO", "BICENTENARIO",
+  "BILLETA", "BIN", "BISONTE", "BOLLATI", "BOLLATTI", "CALTABIANO", "CAMIONERA MENDOCINA",
+  "CARDONE S.A.", "CARENA", "CARGO", "CARLITOS (para Entre Rios)",
+  "CARLITOS (para Prov BsAS)", "CARNEVALI", "CAROSIO Y VAIROLATTI",
+  "Carossio, Vairolatti y Cía SRL", "CATALBIANO", "CAÑADA DE GOMEZ", "CD Bazares en Linea",
+  "CEMA", "CENTRAL ARGENTINO", "CHAMORRO", "CHAVEZ HNOS", "Chilecito", "CHIVILCOY",
+  "CIARLANTINI", "CONTE", "COOP DE TRABAJO RSUT LTDA", "COPAR", "CRUZ DEL SUR", "DE LA VEGA",
+  "Delog", "DEMONTE", "DIAGONAL", "DIEMAR", "DON ROBERTO", "DOÑA RAMONA", "EL CHANGUITO",
+  "EL CHINO", "EL FARO SA", "EL JESUITA", "EL NOBLE", "EL RAPIDO", "EL RAYO", "El Resero",
+  "EL VASQUITO", "ENCARGO", "ENCARGO EXPRESS", "ENCOMIENDAS CARLOS CASARES",
+  "ENTREGA DEPOSITO", "Estacion De Cargas Serena SRL", "ESTRELLA", "EXPRESO 2 CIUDADES",
+  "EXPRESO ALFA", "Expreso Biletta S.R.L.", "EXPRESO CAMUFER", "EXPRESO CAVALA",
+  "Expreso de a 4 Bahia", "Expreso El Rapido", "Expreso El Vasquito SA", "EXPRESO FUEGUINOS",
+  "EXPRESO GARMENDIA", "Expreso Interprovincial", "Expreso Junin", "Expreso Lo Bruno",
+  "EXPRESO MAIPU", "EXPRESO MKS", "EXPRESO PANAMA", "EXPRESO PUERTAS DE CUYO",
+  "EXPRESO RICHTER", "Expreso Suarence", "EXPRESO T.A.S.", "EXPRESO TRAN VITALE",
+  "Expreso Trole", "EXPRESO TROLE", "Expreso Valeiras", "FANTACCI", "Ferrocargas del Sur",
+  "FONTANA", "FORZAP", "FRASER", "FRONTERA", "GAL LOGISTICA SA",
+  "Gestiones y Soluciones Logist", "GOMEZ", "Grupo Nava", "Guillan", "HACHA DE PIEDRA",
+  "HADA", "HERMES", "ILIA", "IMAZ", "INCA", "INTERPROVINCIAL", "JE Logistica",
+  "JOSE BELARDI", "KEMBER", "L y D Logistica", "LA ANTARTIDA", "LA SEVILLANITA", "LAN CARG",
+  "LANCIONI", "LARRAZ", "LAST EXPRES", "Lazaro Cargas", "LEO", "LESCANO", "LEZANA", "Lider",
+  "Logiscar SAS", "LOGISTICA ANDREA", "Logistica Busca Lo Mio", "Logistica Cardo",
+  "Logistica Difabio", "LOGISTICA SALTA SRL", "LOGISTICA SATELITAL SRL",
+  "Logistica TransSAB", "LOPEZ", "LOTSA", "LUCES", "LUJAN DE CUYO", "LUKE", "LURO", "M Z",
+  "MALARGUE", "MF Logistica", "MIGUEL MESSARA", "MONTERO HERMANOS SRL", "MORABITO",
+  "Morresi", "MOSTTO- PERGAMINO", "MOSTTO- PORTELA", "Moyano Cargas", "NOR PATAGONICO",
+  "NT SERVICIOS", "NUB LOGISTICA S.A.S", "NUB LOGISTICAS SAS", "NUEVA ROMA",
+  "NUEVO HORIZONTE", "NUEVO TRANSPORTE SRL", "NUEVO VALLE", "Oliva", "OLIVA HNOS", "ORION",
+  "ORO BLANCO", "ORO NEGRO", "Ortiz", "PACINI", "PEDRITO", "PIGUE", "POLI", "PRADA",
+  "PREMAT", "PRIVITERA", "PUNILLA", "Raosa S.R.L.", "Red del Norte", "RETIRA", "RICHARDS",
+  "RIDISSI", "Rio Lavayen", "RIVADAVIA", "RIVERO", "RODRIGO", "RODRIGUEZ", "RUTA 11",
+  "SALDAR", "SALMA", "SALTA", "San Carlos (Bs As)", "SAN CARLOS (Rosario)", "SAN JOSE",
+  "SAN NICOLAS", "SANCHEZ", "SANELLI", "SANTA ELISA", "SANTA ROSA", "SANTULI", "SARITA",
+  "Scor Dina", "Servicargas Transporte", "Servicios Logisticos y Postale", "SEVILLANITA",
+  "SNAIDER", "SOLMAR", "SPACAPAN", "SUDAMERICANO", "SZILAK S.R.L.", "TAQSA PAQ", "TARRES",
+  "TB LOGISTICA", "TIM CAR", "Todo Facil Express", "Tokio", "TRADELOG", "Trand Melly's",
+  "TRANS", "TRANS-NORT", "TRANSCARGO ARGENTINA", "Transfull SA", "TRANSGUAZU", "TRANSNORT",
+  "TRANSP THUNDER", "TRANSP.LAS FLORES", "Transporte Falco", "Transporte Frontera",
+  "TRANSPORTE HIPPOCARGO", "Transporte Iros", "Transporte Jaime", "TRANSPORTE LA RUTA S-A-",
+  "Transporte Milana", "TRANSPORTE PILONI", "Transporte RSUT", "TRANSPORTE SALDAR",
+  "Transporte Santa Fe", "Transporte Sierra", "Transportes Union SA", "TRANSVEL", "TRAVERSO",
+  "Tuñon y Mossotto", "UNION (CHUBUT)", "VALLE DE LERMA", "VELOMAX", "VESPRINI", "Victorica",
+  "VILLA ANGELA", "VILLANOVA", "YOUVE", "Ñandubay",
+];
+// Crea (una vez) el <datalist> global que alimenta el autocomplete de Expreso.
+function _expoBuildExpresoDatalist() {
+  if (document.getElementById("expoExpresoList")) return;
+  var dl = document.createElement("datalist");
+  dl.id = "expoExpresoList";
+  var html = "";
+  EXPO_EXPRESOS.forEach(function (n) {
+    html += '<option value="' + _expoEsc(n) + '"></option>';
+  });
+  dl.innerHTML = html;
+  document.body.appendChild(dl);
+}
+function _expoFillProvincias() {
+  var sel = document.getElementById("expoNewProvFiscal");
+  if (sel) sel.innerHTML = _expoProvinciaOptions(sel.value);
+}
+
+function _expoAddrAddRow(prefill, prepend) {
+  prefill = prefill || {};
+  _expoBuildExpresoDatalist();
+  var list = document.getElementById("expoAddrList");
+  if (!list) return;
+  var row = document.createElement("div");
+  row.className = "expo-addr-row";
+  row.innerHTML =
+    '<input class="expo-inp expo-addr-tit" placeholder="Nombre sucursal — ej: Gurruchaga 2100 - Palermo" />' +
+    '<div class="expo-addr-fields">' +
+    '<input class="expo-inp expo-addr-dir" placeholder="Dirección de entrega" />' +
+    '<input class="expo-inp expo-addr-loc" placeholder="Localidad / zona" />' +
+    '<select class="expo-inp expo-addr-prov">' + _expoProvinciaOptions(prefill.provincia) + "</select>" +
+    '<input class="expo-inp expo-addr-exp" list="expoExpresoList" autocomplete="off" placeholder="Expreso (empezá a escribir)" />' +
+    '<button type="button" class="expo-addr-del" title="Quitar">&times;</button>' +
+    "</div>";
+  row.querySelector(".expo-addr-tit").value = prefill.titulo || "";
+  row.querySelector(".expo-addr-dir").value = prefill.direccion || "";
+  row.querySelector(".expo-addr-loc").value = prefill.localidad || "";
+  row.querySelector(".expo-addr-prov").value = prefill.provincia || "";
+  row.querySelector(".expo-addr-exp").value = prefill.expreso || "";
+  // Autocompletar el título como "dirección - zona" si el operador no lo tocó.
+  var titEl = row.querySelector(".expo-addr-tit");
+  var dirEl = row.querySelector(".expo-addr-dir");
+  var locEl = row.querySelector(".expo-addr-loc");
+  function _autoTit() {
+    if (titEl.dataset.touched === "1") return;
+    var d = dirEl.value.trim(), l = locEl.value.trim();
+    titEl.value = d && l ? d + " - " + l : d || l || "";
+  }
+  dirEl.addEventListener("input", _autoTit);
+  locEl.addEventListener("input", _autoTit);
+  titEl.addEventListener("input", function () { titEl.dataset.touched = "1"; });
+  row.querySelector(".expo-addr-del").addEventListener("click", function () {
+    row.remove();
+    // Garantizar mínimo 1 fila
+    if (!document.querySelectorAll("#expoAddrList .expo-addr-row").length)
+      _expoAddrAddRow();
+    _expoNewSyncComplete();
+  });
+  // Las sucursales nuevas (botones Agregar / Usar fiscal) van ARRIBA (primeras).
+  if (prepend && list.firstChild) list.insertBefore(row, list.firstChild);
+  else list.appendChild(row);
+  _expoNewSyncComplete();
+}
+
+function _expoAddrCollect() {
+  var out = [];
+  document.querySelectorAll("#expoAddrList .expo-addr-row").forEach(function (r) {
+    var dir = (r.querySelector(".expo-addr-dir").value || "").trim();
+    if (!dir) return;
+    var loc = (r.querySelector(".expo-addr-loc").value || "").trim();
+    var tit = (r.querySelector(".expo-addr-tit").value || "").trim();
+    out.push({
+      titulo: tit || (loc ? dir + " - " + loc : dir), // nombre de sucursal
+      direccion: dir,
+      localidad: loc,
+      provincia: (r.querySelector(".expo-addr-prov").value || "").trim(),
+      expreso: (r.querySelector(".expo-addr-exp").value || "").trim(),
+    });
+  });
+  return out;
+}
+
+// Vendedores (código ERP → nombre). El 7 (FCA = nosotros) va primero.
+var EXPO_VENDEDORES = [
+  { c: "7", n: "FCA (Nosotros)" },
+  { c: "1", n: "Andres O. Luca" }, { c: "2", n: "Audisio Mario" },
+  { c: "3", n: "Cagnolo Mario" }, { c: "4", n: "Carrizo Gabriel" },
+  { c: "5", n: "Fabrica J" }, { c: "6", n: "Fabrica P" },
+  { c: "8", n: "Horizonte" }, { c: "9", n: "Juan Jose Zaffaroni" },
+  { c: "10", n: "Lisa Katz" }, { c: "11", n: "Marcos Lilo" },
+  { c: "12", n: "Tomas Schinder" }, { c: "13", n: "Monin Leticia S" },
+  { c: "14", n: "Norhon" }, { c: "15", n: "O.M.D. Argentina" },
+  { c: "16", n: "Pablo Antonelli" }, { c: "17", n: "Pedro Serra" },
+  { c: "18", n: "Primer Precio" }, { c: "19", n: "Sphan" },
+  { c: "20", n: "Supermercados" }, { c: "21", n: "Thomas LK" },
+  { c: "22", n: "La Bianca" }, { c: "23", n: "Mottura" },
+];
+
+function _expoFillVendedores() {
+  var sel = document.getElementById("expoNewVend");
+  if (!sel) return;
+  sel.innerHTML = EXPO_VENDEDORES.map(function (v) {
+    return '<option value="' + v.c + '">' + v.c + " - " + v.n + "</option>";
+  }).join("");
+  sel.value = "7"; // default: nosotros
+}
+
+async function expoNuevoCliente() {
+  var m = document.getElementById("expoNewModal");
+  if (!m) return;
+  _expoNewState = { id: null, authId: null };
+  [
+    "expoNewRazon", "expoNewCuit", "expoNewWhatsapp",
+    "expoNewMail", "expoNewCod",
+    "expoNewDirFiscal", "expoNewNumFiscal", "expoNewCpFiscal",
+    "expoNewLocFiscal", "expoNewProvFiscal",
+  ].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  var condIva = document.getElementById("expoNewCondIva");
+  if (condIva) condIva.value = "Responsable Inscripto";
+  _expoFillVendedores();
+  _expoFillProvincias();
+  document.getElementById("expoNewPin").value = _expoNewGenPin();
+  document.getElementById("expoAddrList").innerHTML = "";
+  _expoAddrAddRow();
+  _expoNewStatus("");
+  _expoWireNewModal();
+  _expoNewSyncComplete();
+  m.classList.add("open"); // ✅ clave: .modal se muestra con .open
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+  // Código ASIGNADO por el sistema (contador propio, no depende del padrón parcial).
+  try {
+    var r = await supabaseClient.rpc("expo_peek_cod");
+    var codEl = document.getElementById("expoNewCod");
+    if (codEl && !r.error && r.data != null) codEl.value = r.data;
+  } catch (e) { /* opcional */ }
+}
+
+function _expoCloseNewModal() {
+  var m = document.getElementById("expoNewModal");
+  if (!m) return;
+  m.classList.remove("open");
+  m.classList.add("hidden");
+  m.setAttribute("aria-hidden", "true");
+}
+
+// Validación de CUIT argentino (11 dígitos + dígito verificador módulo 11).
+// Devuelve true si el DV cierra. Los placeholders 99… no cierran → se avisa,
+// pero NO se bloquea (el ERP los usa a propósito).
+function _expoCuitValido(digits) {
+  digits = String(digits || "").replace(/[^0-9]/g, "");
+  if (digits.length !== 11) return false;
+  var pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  var suma = 0;
+  for (var i = 0; i < 10; i++) suma += parseInt(digits[i], 10) * pesos[i];
+  var resto = suma % 11;
+  var dv = 11 - resto;
+  if (dv === 11) dv = 0;
+  if (dv === 10) return false; // CUIT inválido por norma
+  return dv === parseInt(digits[10], 10);
+}
+
+// Busca clientes existentes con el MISMO CUIT (excluyendo el propio en edición).
+// Reusa buscar_cliente_expo (matchea por dígitos) y filtra por coincidencia exacta.
+async function _expoDuplicadosCuit(cuit, selfId) {
+  var out = [];
+  try {
+    var r = await supabaseClient.rpc("buscar_cliente_expo", { p_q: cuit });
+    if (!r.error && r.data) {
+      r.data.forEach(function (c) {
+        if (selfId && String(c.id) === String(selfId)) return;
+        var cd = String(c.cuit || "").replace(/[^0-9]/g, "");
+        if (cd && cd === cuit) out.push(c);
+      });
+    }
+  } catch (e) { /* si falla la búsqueda, no bloquea el alta */ }
+  return out;
+}
+
+// mode: "order"    → guarda parcial y va a armar el pedido (arranque incompleto).
+//       "complete" → exige TODOS los datos (salvo expreso). Si falta, avisa qué
+//                    y NO cierra (igual guarda lo que hay). Si está completo,
+//                    cierra y lleva al carrito para pagar/enviar.
+async function _expoGuardarNuevo(mode) {
+  if (mode === true) mode = "order"; // compat retro (viejo pauseOnly)
+  mode = mode || "order";
+  var razon = (document.getElementById("expoNewRazon").value || "").trim();
+  var cuit = (document.getElementById("expoNewCuit").value || "").replace(/[^0-9]/g, "");
+  // Mínimo para registrar al cliente: SOLO la razón social (para tenerlo cargado
+  // apenas llega y arrancar el pedido). El CUIT y el resto pueden venir después;
+  // el ENVÍO del pedido queda bloqueado hasta que esté completo (chequeo auto).
+  if (!razon) {
+    _expoNewStatus("La razón social es obligatoria para registrar al cliente.", "err");
+    return;
+  }
+  var addrs = _expoAddrCollect();
+
+  // Chequeos de CUIT solo si ya lo cargaron (puede completarse más tarde).
+  if (cuit) {
+    // Validar CUIT (avisar, no bloquear: hay placeholders 99… a propósito).
+    if (!_expoCuitValido(cuit)) {
+      if (!confirm(
+        "El CUIT " + cuit + " no parece válido (dígito verificador no cierra o no tiene 11 dígitos).\n\n" +
+        "¿Guardar igual? (usá esto solo si es un CUIT provisorio)."
+      )) {
+        _expoNewStatus("Revisá el CUIT.", "err");
+        return;
+      }
+    }
+    // Aviso de duplicado por CUIT (excluye el propio si es edición).
+    var dups = await _expoDuplicadosCuit(cuit, _expoNewState.id);
+    if (dups.length) {
+      var lista = dups.slice(0, 5).map(function (c) {
+        return "• Cód " + (c.cod_cliente || "—") + " — " + (c.business_name || "");
+      }).join("\n");
+      if (!confirm(
+        "Ya existe " + dups.length + " cliente(s) con el CUIT " + cuit + ":\n\n" +
+        lista + "\n\n¿Crear/actualizar igual?"
+      )) {
+        _expoNewStatus("Alta cancelada: CUIT ya existente.", "err");
+        return;
+      }
+    }
+  }
+  var cod = (document.getElementById("expoNewCod").value || "").trim();
+  var pin = document.getElementById("expoNewPin").value;
+  // El Dto por volumen NO se carga acá: se calcula por la escala en función del
+  // pedido. El cliente se crea con dto 0 (el ERP fija el dto vigente después).
+  var dto = 0;
+  var whatsapp = (document.getElementById("expoNewWhatsapp").value || "").trim();
+  var mail = (document.getElementById("expoNewMail").value || "").trim();
+  var vend = (document.getElementById("expoNewVend").value || "").trim();
+  var dirFiscal = (document.getElementById("expoNewDirFiscal").value || "").trim();
+  var numFiscal = (document.getElementById("expoNewNumFiscal").value || "").trim();
+  var cpFiscal = (document.getElementById("expoNewCpFiscal").value || "").trim();
+  var locFiscal = (document.getElementById("expoNewLocFiscal").value || "").trim();
+  var provFiscal = (document.getElementById("expoNewProvFiscal").value || "").trim();
+  var tel = ""; // campo Teléfono removido del alta (queda WhatsApp)
+  var condIvaEl = document.getElementById("expoNewCondIva");
+  var condIva = condIvaEl ? condIvaEl.value : "";
+
+  // Completitud automática (todo salvo expreso).
+  var formData = {
+    business_name: razon, cuit: cuit, condicion_iva: condIva, vend: vend,
+    whatsapp: whatsapp, mail: mail, direccion: dirFiscal, numero: numFiscal,
+    cp: cpFiscal, localidad: locFiscal, provincia: provFiscal,
+    direcciones_entrega: addrs,
+  };
+  var completo = _expoDatosCompletos(formData);
+
+  var pauseBtn = document.getElementById("expoNewPause");
+  var goBtn = document.getElementById("expoNewGoOrder");
+  if (pauseBtn) pauseBtn.disabled = true;
+  if (goBtn) goBtn.disabled = true;
+  _expoNewStatus("Guardando…");
+
+  try {
+    if (!_expoNewState.id) {
+      // Reservar el código asignado por el sistema (solo en el alta inicial).
+      try {
+        var rc = await supabaseClient.rpc("expo_reservar_cod");
+        if (!rc.error && rc.data != null) {
+          cod = String(rc.data);
+          var ce = document.getElementById("expoNewCod");
+          if (ce) ce.value = cod;
+        }
+      } catch (e) { /* si falla, queda el código del peek */ }
+    }
+    var cust = {
+      business_name: razon,
+      cuit: cuit || null,
+      cod_cliente: cod ? parseInt(cod, 10) : null,
+      dto_vol: dto,
+      vend: vend || null,
+      mail: mail || null,
+      whatsapp: whatsapp || null,
+      direccion_fiscal: dirFiscal || null,
+      localidad: locFiscal || null,
+    };
+
+    // El usuario auth (login del cliente) SOLO se puede crear con CUIT (el email
+    // sintético es <cuit>@cuit.loekemeyer). Si todavía no hay CUIT, se difiere:
+    // se crea cuando se complete. Puede pasar en el alta o en un guardado posterior.
+    if (cuit && !_expoNewState.authId) {
+      _expoNewState.authId = await _expoCreateAuthUser(cuit, pin);
+    }
+
+    if (!_expoNewState.id) {
+      var insPayload = Object.assign({}, cust, { pin: pin });
+      if (_expoNewState.authId) insPayload.auth_user_id = _expoNewState.authId;
+      var ins = await supabaseClient
+        .from("customers")
+        .insert(insPayload)
+        .select("id")
+        .single();
+      if (ins.error) throw ins.error;
+      _expoNewState.id = ins.data.id;
+    } else {
+      var updPayload = Object.assign({}, cust);
+      // Si recién ahora se creó el auth (CUIT cargado más tarde), vincularlo.
+      if (_expoNewState.authId) updPayload.auth_user_id = _expoNewState.authId;
+      var upd = await supabaseClient
+        .from("customers")
+        .update(updPayload)
+        .eq("id", _expoNewState.id);
+      if (upd.error) throw upd.error;
+    }
+
+    // Direcciones de entrega: reemplazo total (borrar + insertar).
+    await supabaseClient
+      .from("customer_delivery_addresses")
+      .delete()
+      .eq("customer_id", _expoNewState.id);
+    var addrRows = addrs.map(function (a, i) {
+      return {
+        customer_id: _expoNewState.id,
+        slot: i + 1,
+        label: a.titulo || a.direccion, // nombre de la sucursal (dirección - zona)
+        direccion_entrega: a.direccion,
+        localidad: a.localidad || null,
+        provincia: a.provincia || null,
+        nombre_expreso: a.expreso || null,
+      };
+    });
+    // Puede no haber ninguna dirección todavía (cliente en pausa incompleto).
+    if (addrRows.length) {
+      var addrIns = await supabaseClient
+        .from("customer_delivery_addresses")
+        .insert(addrRows);
+      if (addrIns.error) throw addrIns.error;
+    }
+
+    // Staging para el ERP (una fila por cliente).
+    await supabaseClient
+      .from("expo_clientes_pendientes")
+      .delete()
+      .eq("customer_id", _expoNewState.id);
+    var stIns = await supabaseClient.from("expo_clientes_pendientes").insert({
+      customer_id: _expoNewState.id,
+      cod_cliente: cust.cod_cliente,
+      business_name: razon,
+      cuit: cuit,
+      direccion: dirFiscal || null,
+      numero: numFiscal || null,
+      cp: cpFiscal || null,
+      localidad: locFiscal || null,
+      provincia: provFiscal || null,
+      condicion_iva: condIva || null,
+      telefono: tel || null,
+      whatsapp: whatsapp || null,
+      mail: mail || null,
+      vend: vend || null,
+      dto_vol: dto,
+      pin: pin,
+      direcciones_entrega: addrs,
+      estado: "pendiente",
+      actualizado_at: new Date().toISOString(),
+    });
+    if (stIns.error) throw stIns.error;
+    // Nota: el vend queda en customers.vend + staging (suficiente para el ERP).
+    // La asociación a user_customer_links la resuelve el panel admin, no el alta expo.
+
+    _expoClientComplete = completo;
+    _expoRefreshResumeBtn();
+
+    var custObj = {
+      id: _expoNewState.id,
+      cod_cliente: cust.cod_cliente,
+      business_name: razon,
+      cuit: cuit,
+      dto_vol: dto,
+      vend: vend,
+    };
+
+    // "Datos completados" pero faltan: avisar QUÉ falta y NO cerrar. El cliente
+    // queda guardado parcial; el envío del pedido sigue bloqueado hasta completar.
+    if (mode === "complete" && !completo) {
+      var faltan = _expoFaltantes(formData);
+      _expoNewStatus("Faltan datos para confirmar: " + faltan.join(", ") + ".", "err");
+      if (pauseBtn) pauseBtn.disabled = false;
+      if (goBtn) goBtn.disabled = false;
+      return;
+    }
+
+    _expoCloseNewModal();
+    await expoApplyCustomer(custObj, { forceExpoNew: true });
+    if (typeof showSection === "function") {
+      if (mode === "complete") {
+        // Datos completos → al carrito si ya hay ítems, si no al catálogo.
+        showSection(cart && cart.length > 0 ? "carrito" : "productos");
+      } else {
+        // Pausar y cargar pedido → al catálogo a armar el pedido.
+        showSection("productos");
+      }
+    }
+  } catch (e) {
+    _expoNewStatus("Error: " + (e && e.message ? e.message : e), "err");
+  } finally {
+    if (pauseBtn) pauseBtn.disabled = false;
+    if (goBtn) goBtn.disabled = false;
+  }
+}
+
+function _expoWireNewModal() {
+  if (_expoNewWired) return;
+  var m = document.getElementById("expoNewModal");
+  if (!m) return;
+  _expoNewWired = true;
+  // Sacar del #perfil (display:none desde Productos) para que el modal renderice.
+  if (m.parentElement !== document.body) document.body.appendChild(m);
+  // Validación EN VIVO: el botón "Datos completados" se habilita solo si está todo.
+  m.addEventListener("input", _expoNewSyncComplete);
+  m.addEventListener("change", _expoNewSyncComplete);
+  var byId = function (x) { return document.getElementById(x); };
+  if (byId("expoNewBackdrop")) byId("expoNewBackdrop").addEventListener("click", _expoCloseNewModal);
+  // "Datos completados": exige TODO (salvo expreso). Si falta, avisa qué; si
+  // está completo, guarda, cierra y lleva al carrito para pagar/enviar.
+  if (byId("expoNewClose")) byId("expoNewClose").addEventListener("click", function () { _expoGuardarNuevo("complete"); });
+  // Sucursales nuevas van ARRIBA (prepend = true).
+  if (byId("expoAddrAdd")) byId("expoAddrAdd").addEventListener("click", function () { _expoAddrAddRow({}, true); });
+  if (byId("expoAddrUseFiscal"))
+    byId("expoAddrUseFiscal").addEventListener("click", function () {
+      var calle = (byId("expoNewDirFiscal").value || "").trim();
+      var nro = (byId("expoNewNumFiscal").value || "").trim();
+      var loc = (byId("expoNewLocFiscal").value || "").trim();
+      var dir = (calle + " " + nro).trim();
+      _expoAddrAddRow({
+        titulo: dir && loc ? dir + " - " + loc : dir,
+        direccion: dir,
+        localidad: loc,
+        provincia: (byId("expoNewProvFiscal").value || "").trim(),
+      }, true);
+    });
+  if (byId("expoNewPause")) byId("expoNewPause").addEventListener("click", function () { _expoGuardarNuevo("order"); });
+  if (byId("expoNewGoOrder")) byId("expoNewGoOrder").addEventListener("click", function () { _expoGuardarNuevo("order"); });
+  if (byId("expoNewPinCopy"))
+    byId("expoNewPinCopy").addEventListener("click", function () {
+      var v = byId("expoNewPin").value;
+      if (!v) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(v).then(function () {
+          _expoNewStatus("Clave copiada.", "ok");
+        });
+      } else {
+        byId("expoNewPin").select();
+      }
+    });
+}
+
+// ---- EXPO: Continuar carga pausada ----
+var _expoResumeWired = false;
+
+function _expoWireResumeModal() {
+  if (_expoResumeWired) return;
+  var m = document.getElementById("expoResumeModal");
+  if (!m) return;
+  _expoResumeWired = true;
+  if (m.parentElement !== document.body) document.body.appendChild(m);
+  var closeBtn = document.getElementById("expoResumeClose");
+  var backdrop = document.getElementById("expoResumeBackdrop");
+  if (closeBtn) closeBtn.addEventListener("click", expoCloseResumeModal);
+  if (backdrop) backdrop.addEventListener("click", expoCloseResumeModal);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && m.classList.contains("open")) expoCloseResumeModal();
+  });
+}
+
+function expoCloseResumeModal() {
+  var m = document.getElementById("expoResumeModal");
+  if (!m) return;
+  m.classList.remove("open");
+  m.classList.add("hidden");
+  m.setAttribute("aria-hidden", "true");
+}
+
+async function expoOpenResumeModal() {
+  var m = document.getElementById("expoResumeModal");
+  if (!m) return;
+  _expoWireResumeModal();
+  m.classList.add("open");
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+  var res = document.getElementById("expoResumeList");
+  if (res) res.innerHTML = '<div class="expo-pick-hint">Cargando…</div>';
+  var r = await supabaseClient
+    .from("expo_clientes_pendientes")
+    .select("customer_id,cod_cliente,business_name,cuit,localidad,provincia,telefono,whatsapp,mail,vend,dto_vol,pin,condicion_iva,direccion,numero,cp,direcciones_entrega,actualizado_at")
+    .eq("estado", "pendiente")
+    .order("actualizado_at", { ascending: false });
+  if (!res) return;
+  if (r.error) {
+    res.innerHTML = '<div class="expo-pick-hint expo-pick-err">Error: ' + _expoEsc(r.error.message) + "</div>";
+    return;
+  }
+  // Solo el/los que están EN CURSO: incompletos ("Falta datos"), más el cliente
+  // activo ahora (para poder editarlo aunque ya esté completo). Los clientes
+  // viejos ya completos NO se listan acá — ensucian la carga en curso.
+  var _activeCod =
+    customerProfile && customerProfile.cod_cliente
+      ? String(customerProfile.cod_cliente)
+      : "";
+  var rows = (r.data || []).filter(function (c) {
+    var completo = _expoDatosCompletos(c);
+    var esActivo = _activeCod && String(c.cod_cliente || "") === _activeCod;
+    return !completo || esActivo;
+  });
+  if (!rows.length) {
+    res.innerHTML = '<div class="expo-pick-hint">No hay cargas en curso.</div>';
+    return;
+  }
+  _expoResumeRows = rows;
+  var html = "";
+  rows.forEach(function (c, i) {
+    var nDir = Array.isArray(c.direcciones_entrega) ? c.direcciones_entrega.length : 0;
+    var ok = _expoDatosCompletos(c);
+    var badge = ok
+      ? '<span class="expo-resume-badge ok">✓ Completo</span>'
+      : '<span class="expo-resume-badge falta">Falta datos</span>';
+    html +=
+      '<button type="button" class="expo-pick-row" data-idx="' + i + '">' +
+      '<span class="expo-pick-name">' + _expoEsc(c.business_name || "(sin razón social)") + " " + badge + "</span>" +
+      '<span class="expo-pick-sub">Cód ' + _expoEsc(c.cod_cliente || "—") +
+      (c.cuit ? " · CUIT " + _expoEsc(c.cuit) : "") +
+      " · " + nDir + " dir." + "</span>" +
+      "</button>";
+  });
+  res.innerHTML = html;
+  res.querySelectorAll(".expo-pick-row").forEach(function (row) {
+    row.addEventListener("click", function () {
+      var c = _expoResumeRows[parseInt(row.dataset.idx, 10)];
+      if (c) expoEditarPendiente(c);
+    });
+  });
+}
+
+var _expoResumeRows = [];
+
+// Abre el modal de "Nuevo cliente" en modo EDICIÓN, precargado desde staging.
+function expoEditarPendiente(row) {
+  var m = document.getElementById("expoNewModal");
+  if (!m) return;
+  expoCloseResumeModal();
+  _expoNewState = { id: row.customer_id, authId: null };
+  _expoFillVendedores();
+  _expoFillProvincias();
+  function setVal(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.value = v != null ? v : "";
+  }
+  setVal("expoNewRazon", row.business_name);
+  setVal("expoNewCuit", row.cuit);
+  setVal("expoNewWhatsapp", row.whatsapp);
+  setVal("expoNewMail", row.mail);
+  setVal("expoNewCod", row.cod_cliente);
+  setVal("expoNewDirFiscal", row.direccion);
+  setVal("expoNewNumFiscal", row.numero);
+  setVal("expoNewCpFiscal", row.cp);
+  setVal("expoNewLocFiscal", row.localidad);
+  setVal("expoNewProvFiscal", row.provincia);
+  var condIva = document.getElementById("expoNewCondIva");
+  if (condIva) condIva.value = row.condicion_iva || "Responsable Inscripto";
+  var vendSel = document.getElementById("expoNewVend");
+  if (vendSel && row.vend != null && row.vend !== "") vendSel.value = String(row.vend);
+  document.getElementById("expoNewPin").value = row.pin || _expoNewGenPin();
+  var list = document.getElementById("expoAddrList");
+  list.innerHTML = "";
+  var dirs = Array.isArray(row.direcciones_entrega) ? row.direcciones_entrega : [];
+  if (dirs.length) dirs.forEach(function (d) { _expoAddrAddRow(d); });
+  else _expoAddrAddRow();
+  _expoNewStatus("Editando carga pausada. Guardá para actualizar.", "");
+  _expoWireNewModal();
+  _expoNewSyncComplete();
+  m.classList.add("open");
+  m.classList.remove("hidden");
+  m.setAttribute("aria-hidden", "false");
+}
+
+function _expoWirePickModal() {
+  if (_expoPickWired) return;
+  var m = document.getElementById("expoPickModal");
+  if (!m) return;
+  _expoPickWired = true;
+  // El markup quedó dentro de #perfil (una .section que se oculta con display:none),
+  // así que el modal no renderiza desde Productos. Lo movemos al body.
+  if (m.parentElement !== document.body) document.body.appendChild(m);
+  var closeBtn = document.getElementById("expoPickClose");
+  var backdrop = document.getElementById("expoPickBackdrop");
+  var inp = document.getElementById("expoPickSearch");
+  if (closeBtn) closeBtn.addEventListener("click", expoClosePickModal);
+  if (backdrop) backdrop.addEventListener("click", expoClosePickModal);
+  if (inp)
+    inp.addEventListener("input", function () {
+      clearTimeout(_expoSearchTimer);
+      _expoSearchTimer = setTimeout(_expoRunSearch, 250);
+    });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !m.classList.contains("hidden"))
+      expoClosePickModal();
+  });
+}
+
 function renderCustomerSelector() {
   var existing = document.getElementById("customerSelectorBanner");
   if (existing) existing.remove();
 
   var existingCart = document.getElementById("customerSelectorCart");
   if (existingCart) existingCart.remove();
+
+  // EXPO: reemplaza el selector "Elegir razón social" por la barra
+  // [Elegir cliente] [Nuevo cliente]. Solo para el operador admin.
+  if (EXPO_MODE && isAdmin) {
+    renderExpoEntryBar();
+    return;
+  }
 
   if (!linkedCustomers.length) return;
 
@@ -6413,6 +7887,35 @@ async function onLinkedCustomerSelected(opts) {
 // Restaura el cliente seleccionado por el vendedor al volver de historial/sugerencias/etc.
 // Usa _csSetValue para sincronizar también el visual del dropdown custom.
 async function restoreSelectedCustomerIfAny() {
+  // EXPO: el cliente pudo elegirse del padrón (no queda en linkedCustomers tras
+  // recargar la página al volver de historial/sugerencias). Se restaura desde su
+  // propia clave, re-aplicándolo completo. fromRestore=true → NO vacía el carrito.
+  if (EXPO_MODE && isAdmin) {
+    var rawExpo = "";
+    try {
+      rawExpo = localStorage.getItem("lk_expo_selected_client") || "";
+    } catch (e) {}
+    if (rawExpo) {
+      try {
+        var ec = JSON.parse(rawExpo);
+        if (ec && ec.id) {
+          await expoApplyCustomer(
+            {
+              id: ec.id,
+              cod_cliente: ec.cod_cliente,
+              business_name: ec.business_name,
+              dto_vol: ec.dto_vol,
+              vend: ec.vend,
+            },
+            { forceExpoNew: !!ec.expoClientMode, fromRestore: true },
+          );
+          return;
+        }
+      } catch (e) { /* clave corrupta: seguir con la restauración normal */ }
+    }
+    return;
+  }
+
   if (!linkedCustomers.length) return;
   var savedCod = "";
   try {
