@@ -6960,8 +6960,8 @@ function _expoProvinciaOptions(selected) {
 // Expresos/transportistas TAL CUAL están cargados en ISIS (última columna del
 // export de sucursales). El campo Expreso autocompleta contra esta lista para
 // que se elija el nombre EXACTO y la importación al ERP no falle por un typo.
-// TODO CHEF: esta lista viene de Loekemeyer. Reemplazar por los EXPRESOS del
-// padrón de sucursales del ERP de Chef.
+// PENDIENTE CHEF: lista de expresos de Loekemeyer, usada como FALLBACK hasta que
+// llegue el padrón de expresos de Chef. Si nunca llega, quedan estos activos.
 var EXPO_EXPRESOS = [
   "11 de Marzo", "4H S.R.L.", "7 de Agosto", "AG Distribuciones Cordoba", "AGUILAR", "ALBO",
   "ALCUVA", "ALEX", "ALONSO", "Alta Cba Encomiendas", "ALVEAR SUR", "AMANES", "AMICCI",
@@ -7094,8 +7094,7 @@ function _expoAddrCollect() {
 }
 
 // Vendedores (código ERP → nombre). El 7 (FCA = nosotros) va primero.
-// TODO CHEF: esta lista viene de Loekemeyer. Reemplazar por los VENDEDORES
-// reales de Chef (código ERP `c` + nombre `n`). El `c` viaja al staging y al ERP.
+// Vendedores compartidos: Loekemeyer y Chef usan los mismos códigos ERP.
 var EXPO_VENDEDORES = [
   { c: "7", n: "FCA (Nosotros)" },
   { c: "1", n: "Andres O. Luca" }, { c: "2", n: "Audisio Mario" },
