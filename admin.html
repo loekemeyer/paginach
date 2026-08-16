@@ -387,6 +387,33 @@
             </span>
             <span>Registro Envíos Correo</span>
           </button>
+          <button class="nav-item" data-page="escala-expo">
+            <span class="nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path d="M4 20V10M10 20V4M16 20v-6M20 20H2" />
+              </svg>
+            </span>
+            <span>Escala Expo</span>
+          </button>
+          <button class="nav-item" data-page="clientes-pendientes">
+            <span class="nav-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </span>
+            <span>Clientes Expo pend.</span>
+          </button>
         </nav>
         <div class="sidebar-footer">
           <a class="config-btn" href="mayorista.html">
@@ -2116,6 +2143,132 @@
 
           <div class="card" style="margin-top:16px">
             <div id="reEnvRecent"></div>
+          </div>
+        </section>
+
+        <!-- ===== SECCIONES EXPO (portadas desde LK) ===== -->
+        <section class="page" id="escala-expo">
+          <div class="page-header">
+            <h1>Escala de descuento — Expo</h1>
+            <p>
+              Dto por volumen que se aplica a los clientes <strong>nuevos de
+              expo</strong>, según el monto de <strong>lista</strong> del pedido
+              (antes del descuento). Se recalcula en vivo mientras cargan el
+              pedido. No afecta a los clientes existentes.
+            </p>
+          </div>
+          <div class="card" style="max-width: 560px">
+            <table class="escala-expo-table" id="escalaExpoTable">
+              <thead>
+                <tr>
+                  <th>Desde (monto lista $)</th>
+                  <th>Dto %</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="escalaExpoBody"></tbody>
+            </table>
+            <div
+              style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap"
+            >
+              <button class="btn-ghost" type="button" id="escalaExpoAddRow">
+                + Agregar tramo
+              </button>
+              <button class="btn-primary" type="button" id="escalaExpoSave">
+                Guardar escala
+              </button>
+            </div>
+            <div
+              id="escalaExpoStatus"
+              style="margin-top: 10px; font-size: 13px; color: #6b7280"
+            ></div>
+          </div>
+        </section>
+
+        <section class="page" id="clientes-pendientes">
+          <div class="page-header">
+            <h1>Clientes nuevos de Expo — pendientes de ERP</h1>
+            <p>
+              Clientes dados de alta durante la expo. Ya existen en la web (para
+              tomarles el pedido y darles PIN), pero <strong>faltan cargarse en
+              ISIS</strong>. Cuando el equipo los sube al ERP, marcalos como
+              <strong>Cargado ERP</strong>. Podés exportar la lista a Excel.
+            </p>
+          </div>
+          <div class="expo-stats" id="cliPendStats">
+            <div class="expo-stat">
+              <div class="expo-stat-num" id="statCliTotal">—</div>
+              <div class="expo-stat-lbl">Clientes nuevos</div>
+            </div>
+            <div class="expo-stat">
+              <div class="expo-stat-num expo-stat-wait" id="statCliPend">—</div>
+              <div class="expo-stat-lbl">Pendientes ERP</div>
+            </div>
+            <div class="expo-stat">
+              <div class="expo-stat-num expo-stat-ok" id="statCliCarg">—</div>
+              <div class="expo-stat-lbl">Cargados ERP</div>
+            </div>
+            <div class="expo-stat">
+              <div class="expo-stat-num" id="statPedCount">—</div>
+              <div class="expo-stat-lbl">Pedidos de expo</div>
+            </div>
+            <div class="expo-stat">
+              <div class="expo-stat-num" id="statPedMonto">—</div>
+              <div class="expo-stat-lbl">Monto pedidos</div>
+            </div>
+          </div>
+          <div class="card">
+            <div
+              style="
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-wrap: wrap;
+                margin-bottom: 12px;
+              "
+            >
+              <select id="cliPendFiltro" class="field-input" style="max-width: 200px">
+                <option value="pendiente">Pendientes</option>
+                <option value="cargado_erp">Cargados en ERP</option>
+                <option value="todos">Todos</option>
+              </select>
+              <button class="btn-ghost" type="button" id="cliPendReload">
+                Actualizar
+              </button>
+              <button class="btn-primary" type="button" id="cliPendExport">
+                Exportar Excel
+              </button>
+              <span
+                id="cliPendCount"
+                style="margin-left: auto; font-size: 13px; color: #6b7280"
+              ></span>
+            </div>
+            <div class="table-wrap" style="overflow-x: auto">
+              <table class="data-table" id="cliPendTable">
+                <thead>
+                  <tr>
+                    <th>Cód</th>
+                    <th>Razón social</th>
+                    <th>CUIT</th>
+                    <th>Cond. IVA</th>
+                    <th>Localidad</th>
+                    <th>Prov.</th>
+                    <th>Tel / WhatsApp</th>
+                    <th>Vend</th>
+                    <th>Dto</th>
+                    <th>Dir. entrega</th>
+                    <th>Cargado</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="cliPendBody"></tbody>
+              </table>
+            </div>
+            <div
+              id="cliPendStatus"
+              style="margin-top: 10px; font-size: 13px; color: #6b7280"
+            ></div>
           </div>
         </section>
       </main>

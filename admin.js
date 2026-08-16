@@ -557,6 +557,18 @@ document.querySelectorAll(".nav-item").forEach(function (btn) {
     if (parentGroup) parentGroup.classList.remove("collapsed");
     // Lazy load para tabs costosos
     if (
+      btn.dataset.page === "escala-expo" &&
+      typeof cargarEscalaExpo === "function"
+    ) {
+      cargarEscalaExpo();
+    }
+    if (
+      btn.dataset.page === "clientes-pendientes" &&
+      typeof cargarClientesPendientes === "function"
+    ) {
+      cargarClientesPendientes();
+    }
+    if (
       btn.dataset.page === "sucursales-pendientes" &&
       typeof cargarSucursalesPendientes === "function"
     ) {
@@ -7479,3 +7491,343 @@ function cerrarDetalleVentaMadre() {
   if (modal) modal.style.display = "none";
 }
 window.cerrarDetalleVentaMadre = cerrarDetalleVentaMadre;
+
+// ===== MÓDULO EXPO — panel admin (portado desde LK) =====
+// ===== ESCALA EXPO — editor de la escala de descuento por volumen =====
+// Aplica solo a clientes NUEVOS de expo (tabla expo_dto_escala, RLS admin).
+var _escalaExpoWired = false;
+
+async function cargarEscalaExpo() {
+  var body = document.getElementById("escalaExpoBody");
+  if (!body) return;
+  _escalaExpoWireOnce();
+  body.innerHTML = "";
+  var r = await sb
+    .from("expo_dto_escala")
+    .select("desde,dto")
+    .order("desde", { ascending: true });
+  if (r.error) {
+    _escalaExpoStatus("Error al cargar: " + r.error.message, true);
+    return;
+  }
+  (r.data || []).forEach(function (t) {
+    _escalaExpoAddRow(Number(t.desde), Number(t.dto) * 100);
+  });
+  if (!(r.data || []).length) _escalaExpoAddRow(0, 0);
+  _escalaExpoStatus("");
+}
+
+function _escalaExpoAddRow(desde, dtoPct) {
+  var body = document.getElementById("escalaExpoBody");
+  if (!body) return;
+  var tr = document.createElement("tr");
+  tr.innerHTML =
+    '<td><input type="number" class="field-input esc-desde" min="0" step="1000" value="' +
+    (desde != null ? desde : "") +
+    '"/></td>' +
+    '<td><input type="number" class="field-input esc-dto" min="0" max="100" step="0.5" value="' +
+    (dtoPct != null ? dtoPct : "") +
+    '"/></td>' +
+    '<td><button type="button" class="btn-ghost esc-del">Quitar</button></td>';
+  tr.querySelector(".esc-del").addEventListener("click", function () {
+    tr.remove();
+    if (!document.querySelectorAll("#escalaExpoBody tr").length)
+      _escalaExpoAddRow(0, 0);
+  });
+  body.appendChild(tr);
+}
+
+function _escalaExpoStatus(msg, isErr) {
+  var el = document.getElementById("escalaExpoStatus");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.color = isErr ? "#b91c1c" : "#166534";
+}
+
+async function guardarEscalaExpo() {
+  var rows = [];
+  var bad = false;
+  document.querySelectorAll("#escalaExpoBody tr").forEach(function (tr) {
+    var d = parseFloat(tr.querySelector(".esc-desde").value);
+    var p = parseFloat(tr.querySelector(".esc-dto").value);
+    if (isNaN(d) || isNaN(p)) {
+      bad = true;
+      return;
+    }
+    rows.push({ desde: d, dto: p / 100 });
+  });
+  if (bad || !rows.length) {
+    _escalaExpoStatus(
+      "Revisá los valores: cada tramo necesita monto y dto.",
+      true,
+    );
+    return;
+  }
+  rows.sort(function (a, b) {
+    return a.desde - b.desde;
+  });
+  _escalaExpoStatus("Guardando…");
+  try {
+    var del = await sb.from("expo_dto_escala").delete().gte("desde", 0);
+    if (del.error) throw del.error;
+    var ins = await sb.from("expo_dto_escala").insert(rows);
+    if (ins.error) throw ins.error;
+    _escalaExpoStatus(
+      "Escala guardada. Se aplica a los próximos clientes nuevos de expo.",
+    );
+    if (typeof toast === "function") toast("Escala guardada");
+    cargarEscalaExpo();
+  } catch (e) {
+    _escalaExpoStatus("Error: " + (e.message || e), true);
+  }
+}
+
+function _escalaExpoWireOnce() {
+  if (_escalaExpoWired) return;
+  _escalaExpoWired = true;
+  var add = document.getElementById("escalaExpoAddRow");
+  var save = document.getElementById("escalaExpoSave");
+  if (add)
+    add.addEventListener("click", function () {
+      _escalaExpoAddRow(0, 0);
+    });
+  if (save) save.addEventListener("click", guardarEscalaExpo);
+}
+
+// ============================================================================
+// Clientes Expo pendientes de ERP
+// ============================================================================
+var _cliPendWired = false;
+var _cliPendRows = [];
+
+function _cliPendStatus(msg, isErr) {
+  var el = document.getElementById("cliPendStatus");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.color = isErr ? "#b91c1c" : "#166534";
+}
+
+async function cargarClientesPendientes() {
+  var body = document.getElementById("cliPendBody");
+  if (!body) return;
+  _cliPendWireOnce();
+  var filtro = (document.getElementById("cliPendFiltro") || {}).value || "pendiente";
+  body.innerHTML =
+    '<tr><td colspan="13" style="text-align:center;color:#6b7280">Cargando…</td></tr>';
+  var q = sb
+    .from("expo_clientes_pendientes")
+    .select(
+      "id,customer_id,cod_cliente,business_name,cuit,condicion_iva,direccion,numero,cp,localidad,provincia,telefono,whatsapp,mail,vend,dto_vol,pin,direcciones_entrega,estado,creado_at,actualizado_at",
+    )
+    .order("actualizado_at", { ascending: false });
+  if (filtro !== "todos") q = q.eq("estado", filtro);
+  var r = await q;
+  if (r.error) {
+    body.innerHTML =
+      '<tr><td colspan="13" style="text-align:center;color:#b91c1c">Error: ' +
+      escapeHtml(r.error.message) +
+      "</td></tr>";
+    return;
+  }
+  _cliPendRows = r.data || [];
+  _cliPendRender(_cliPendRows);
+  var cnt = document.getElementById("cliPendCount");
+  if (cnt) cnt.textContent = _cliPendRows.length + " cliente(s)";
+  _cliPendStatus("");
+  _cliPendCargarStats();
+}
+
+async function _cliPendCargarStats() {
+  var d = await sb.rpc("expo_dashboard");
+  if (d.error || !d.data) return;
+  var s = d.data;
+  function set(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = v;
+  }
+  set("statCliTotal", s.clientes_total != null ? s.clientes_total : "—");
+  set("statCliPend", s.clientes_pendientes != null ? s.clientes_pendientes : "—");
+  set("statCliCarg", s.clientes_cargados != null ? s.clientes_cargados : "—");
+  set("statPedCount", s.pedidos_count != null ? s.pedidos_count : "—");
+  var monto = Number(s.pedidos_monto || 0);
+  set(
+    "statPedMonto",
+    "$" + monto.toLocaleString("es-AR", { maximumFractionDigits: 0 }),
+  );
+}
+
+function _cliPendDirResumen(dirs) {
+  if (!Array.isArray(dirs) || !dirs.length) return "—";
+  var tit = dirs
+    .map(function (d) {
+      return d.titulo || d.direccion || "";
+    })
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    '<span title="' + escapeHtml(tit) + '">' + dirs.length + " dir.</span>"
+  );
+}
+
+function _cliPendRender(rows) {
+  var body = document.getElementById("cliPendBody");
+  if (!body) return;
+  if (!rows.length) {
+    body.innerHTML =
+      '<tr><td colspan="13" style="text-align:center;color:#6b7280">No hay clientes en este estado.</td></tr>';
+    return;
+  }
+  var html = "";
+  rows.forEach(function (c) {
+    var cargado = c.estado === "cargado_erp";
+    var tel = [c.telefono, c.whatsapp].filter(Boolean).join(" / ") || "—";
+    var dto = c.dto_vol != null ? Math.round(Number(c.dto_vol) * 100) + "%" : "—";
+    html +=
+      "<tr>" +
+      "<td>" + escapeHtml(c.cod_cliente || "—") + "</td>" +
+      "<td>" + escapeHtml(c.business_name || "(sin razón social)") + "</td>" +
+      "<td>" + escapeHtml(c.cuit || "—") + "</td>" +
+      "<td>" + escapeHtml(c.condicion_iva || "—") + "</td>" +
+      "<td>" + escapeHtml(c.localidad || "—") + "</td>" +
+      "<td>" + escapeHtml(c.provincia || "—") + "</td>" +
+      "<td>" + escapeHtml(tel) + "</td>" +
+      "<td>" + escapeHtml(c.vend || "—") + "</td>" +
+      "<td>" + dto + "</td>" +
+      "<td>" + _cliPendDirResumen(c.direcciones_entrega) + "</td>" +
+      '<td style="text-align:center">' +
+      '<input type="checkbox" class="cli-pend-chk" data-id="' +
+      escapeHtml(c.id) +
+      '" ' +
+      (cargado ? "checked" : "") +
+      " /></td>" +
+      "<td>" +
+      '<span class="cli-pend-badge ' +
+      (cargado ? "ok" : "wait") +
+      '">' +
+      (cargado ? "Cargado ERP" : "Pendiente") +
+      "</span></td>" +
+      "<td>" +
+      '<button type="button" class="btn-ghost cli-pend-del" data-id="' +
+      escapeHtml(c.id) +
+      '">Eliminar</button></td>' +
+      "</tr>";
+  });
+  body.innerHTML = html;
+  body.querySelectorAll(".cli-pend-chk").forEach(function (chk) {
+    chk.addEventListener("change", function () {
+      _cliPendSetEstado(chk.dataset.id, chk.checked ? "cargado_erp" : "pendiente");
+    });
+  });
+  body.querySelectorAll(".cli-pend-del").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      _cliPendDelete(btn.dataset.id);
+    });
+  });
+}
+
+async function _cliPendSetEstado(id, estado) {
+  _cliPendStatus("Guardando…");
+  var upd = await sb
+    .from("expo_clientes_pendientes")
+    .update({ estado: estado, actualizado_at: new Date().toISOString() })
+    .eq("id", id);
+  if (upd.error) {
+    _cliPendStatus("Error: " + upd.error.message, true);
+    return;
+  }
+  _cliPendStatus(estado === "cargado_erp" ? "Marcado como cargado en ERP." : "Vuelto a pendiente.");
+  cargarClientesPendientes();
+}
+
+async function _cliPendDelete(id) {
+  var row = _cliPendRows.find(function (x) {
+    return String(x.id) === String(id);
+  });
+  var nombre = row ? row.business_name || "este cliente" : "este cliente";
+  if (
+    !confirm(
+      "¿Quitar “" +
+        nombre +
+        "” de la lista de pendientes?\n\nSolo se borra el registro de staging; el cliente sigue en la web (customers) para su pedido/PIN.",
+    )
+  )
+    return;
+  _cliPendStatus("Eliminando…");
+  var del = await sb.from("expo_clientes_pendientes").delete().eq("id", id);
+  if (del.error) {
+    _cliPendStatus("Error: " + del.error.message, true);
+    return;
+  }
+  _cliPendStatus("Registro eliminado.");
+  if (typeof toast === "function") toast("Eliminado de pendientes");
+  cargarClientesPendientes();
+}
+
+function exportarClientesPendientes() {
+  if (!_cliPendRows.length) {
+    _cliPendStatus("No hay filas para exportar.", true);
+    return;
+  }
+  var encabezados = [
+    "Cod cliente", "Razon social", "CUIT", "Condicion IVA",
+    "Direccion fiscal", "Numero", "CP", "Localidad", "Provincia",
+    "Telefono", "WhatsApp", "Mail", "Vendedor", "Dto vol %", "PIN",
+    "Direcciones de entrega", "Estado", "Creado",
+  ];
+  var aoa = [encabezados];
+  _cliPendRows.forEach(function (c) {
+    var dirs = Array.isArray(c.direcciones_entrega) ? c.direcciones_entrega : [];
+    var dirTxt = dirs
+      .map(function (d) {
+        return (
+          (d.titulo || d.direccion || "") +
+          (d.localidad ? " (" + d.localidad + ")" : "") +
+          (d.provincia ? ", " + d.provincia : "") +
+          (d.expreso ? " [Expreso: " + d.expreso + "]" : "")
+        );
+      })
+      .join(" | ");
+    aoa.push([
+      c.cod_cliente || "",
+      c.business_name || "",
+      c.cuit || "",
+      c.condicion_iva || "",
+      c.direccion || "",
+      c.numero || "",
+      c.cp || "",
+      c.localidad || "",
+      c.provincia || "",
+      c.telefono || "",
+      c.whatsapp || "",
+      c.mail || "",
+      c.vend || "",
+      c.dto_vol != null ? Math.round(Number(c.dto_vol) * 100) : "",
+      c.pin || "",
+      dirTxt,
+      c.estado === "cargado_erp" ? "Cargado ERP" : "Pendiente",
+      (c.creado_at || "").slice(0, 10),
+    ]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [
+    { wch: 10 }, { wch: 32 }, { wch: 14 }, { wch: 20 },
+    { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 14 },
+    { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 8 }, { wch: 9 }, { wch: 32 },
+    { wch: 50 }, { wch: 12 }, { wch: 12 },
+  ];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Clientes Expo");
+  XLSX.writeFile(wb, "clientes-expo-pendientes.xlsx");
+  _cliPendStatus("Excel generado (" + _cliPendRows.length + " filas).");
+}
+
+function _cliPendWireOnce() {
+  if (_cliPendWired) return;
+  _cliPendWired = true;
+  var filtro = document.getElementById("cliPendFiltro");
+  var reload = document.getElementById("cliPendReload");
+  var exp = document.getElementById("cliPendExport");
+  if (filtro) filtro.addEventListener("change", cargarClientesPendientes);
+  if (reload) reload.addEventListener("click", cargarClientesPendientes);
+  if (exp) exp.addEventListener("click", exportarClientesPendientes);
+}
