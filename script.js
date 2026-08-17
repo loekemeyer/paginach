@@ -6957,16 +6957,26 @@ function _expoIsExpoPresentes(text) {
 }
 
 function _expoParseExpoPresentes(text) {
+  // Layout posicional confirmado (expositor Y visitante/comerciante):
+  //   0:CODE 1:NOMBRE 2:APELLIDO 3:EMPRESA 4:DNI 5:CUIT 6:TEL 7:EMAIL
+  // El de expositor trae 4-7 vacíos; el de visitante los completa.
   var f = text.split("|");
   var nombre = (f[1] || "").trim();
   var apellido = (f[2] || "").trim();
   var empresa = (f[3] || "").trim();
+  var cuit = (f[5] || "").replace(/\D/g, "");   // f[4] = DNI (sin campo en el alta → se ignora)
+  var tel = (f[6] || "").replace(/\D/g, "");
+  var email = (f[7] || "").trim();
   var fullName = (nombre + " " + apellido).trim();
-  return {
+  var out = {
     fullName: fullName || undefined,
     company: empresa || undefined,
     source: "qr_expo_presentes",
   };
+  if (cuit.length === 11) out.cuit = cuit;
+  if (tel) out.whatsapp = tel;
+  if (email && email.indexOf("@") > 0) out.email = email;
+  return out;
 }
 
 function _expoParseVCard(text) {
@@ -7028,6 +7038,7 @@ function _expoFillFromQR(p) {
   }
   // Razón social: empresa; si no vino empresa, el nombre completo.
   set("expoNewRazon", p.company || p.fullName, "Razón social");
+  set("expoNewCuit", p.cuit, "CUIT");
   set("expoNewMail", p.email, "Mail");
   if (p.whatsapp) set("expoNewWhatsapp", String(p.whatsapp).replace(/[^0-9]/g, ""), "WhatsApp");
   if (p.province) {
