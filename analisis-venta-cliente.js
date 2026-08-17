@@ -346,6 +346,7 @@ async function buscarCliente(codCliente) {
     movements.forEach(function (m) {
       globalPurchasedItems.add(m.item_code);
     });
+    avcPurchasedSet = globalPurchasedItems; // para el catálogo PDF (más vendidos no comprados)
 
     // 10. Análisis GLOBAL del cliente — Altas / Bajas / Probó1Vez / A Ofrecer
     //     se calculan sobre TODOS los movs y se comparten entre branches.
@@ -1178,8 +1179,44 @@ function computeAOfrecer(excludedSet) {
 // con "se vende N× más") y BAJAS (los que compraba y dejó). Reusa jsPDF
 // (cargado en admin.html). Chef sirve las fotos en .jpg (no .webp).
 // ============================================================
+var avcPurchasedSet = null; // set de item_code que el cliente SÍ compra (para el catálogo)
 var AVC_BASE_IMG =
   AVC_SUPABASE_URL + "/storage/v1/object/public/products-images/";
+
+// Lista AMPLIA para el catálogo: los más vendidos del negocio (ranking de
+// estadística madre) que el cliente NO compra. Devuelve top N con "mult" (N× más).
+function avcCatalogoOfrecer(topN) {
+  var purchased = avcPurchasedSet || new Set();
+  var bv = [];
+  purchased.forEach(function (cod) {
+    var em = estadisticaMadre[cod];
+    if (em && em.e_madre_uni_mes > 0) bv.push(em.e_madre_uni_mes);
+  });
+  bv.sort(function (x, y) { return x - y; });
+  var base = bv.length ? bv[Math.floor(bv.length / 2)] : 0;
+  var arr = [];
+  Object.keys(productByCod).forEach(function (cod) {
+    var p = productByCod[cod];
+    if (!p || p.active === false) return;
+    if (purchased.has(cod)) return;
+    var em = estadisticaMadre[cod];
+    if (!em || (em.ranking == null && !em.e_madre_uni_mes)) return; // solo con demanda
+    arr.push({
+      cod: cod,
+      descripcion: p.descripcion || cod,
+      categoria: p.categoria || em.categoria || "",
+      ranking: em.ranking,
+      e_madre: em.e_madre_uni_mes,
+      mult: em.e_madre_uni_mes && base ? em.e_madre_uni_mes / base : null,
+    });
+  });
+  arr.sort(function (m, n) {
+    var rm = m.ranking == null ? 1e9 : m.ranking;
+    var rn = n.ranking == null ? 1e9 : n.ranking;
+    return rm - rn;
+  });
+  return arr.slice(0, topN || 20);
+}
 
 function avcLoadImageDataURL(src) {
   return new Promise(function (resolve) {
@@ -1213,7 +1250,9 @@ async function avcDescargarCatalogoPDF() {
   }
   if (!br) br = branches[0];
   var a = (br && br.analysis) || {};
-  var aOfrecer = (a.aOfrecer || []).slice(0, TOP_OFRECER);
+  // Catálogo AMPLIO: más vendidos que no compra. Fallback a "A Ofrecer" (nuevos).
+  var aOfrecer = avcCatalogoOfrecer(20);
+  if (!aOfrecer.length) aOfrecer = (a.aOfrecer || []).slice(0, TOP_OFRECER);
   var bajas = a.bajas || [];
   if (!aOfrecer.length && !bajas.length) {
     alert("Este cliente no tiene productos para ofrecer ni bajas para mostrar.");
