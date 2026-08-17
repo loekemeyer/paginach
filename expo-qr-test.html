@@ -92,16 +92,17 @@ function parseExpoPresentes(text) {
   return out;
 }
 // Comerciante Expo Presentes: mailto: + pipe (%7C). Layout POSICIONAL:
-//   0:RAZÓN SOCIAL | 1:DNI | 2:CUIT | 3:TELÉFONO | 4:EMAIL  (DNI y tel se ignoran)
+//   0:RAZÓN SOCIAL | 1:DNI | 2:CUIT | 3:TELÉFONO | 4:EMAIL  (DNI se ignora)
 function parseMailto(text) {
   var body = text.replace(/^mailto:/i, "");
   try { body = decodeURIComponent(body); } catch (e) {}
   body = body.trim();
   if (body.indexOf("|") >= 0) {
     var f = body.split("|"), out = { source: "qr_visitante" };
-    var razon = (f[0] || "").trim(), cuit = (f[2] || "").replace(/\D/g, ""), email = (f[4] || "").trim();
+    var razon = (f[0] || "").trim(), cuit = (f[2] || "").replace(/\D/g, ""), tel = (f[3] || "").replace(/\D/g, ""), email = (f[4] || "").trim();
     if (razon) out.company = razon;
     if (cuit.length === 11) out.cuit = cuit;
+    if (tel) out.whatsapp = tel;
     if (email && email.indexOf("@") > 0) out.email = email;
     return out;
   }
@@ -172,7 +173,7 @@ function loadJsQR() {
   if (jsqrLoading) return jsqrLoading;
   jsqrLoading = new Promise(function (res, rej) {
     var s = document.createElement("script");
-    s.src = "jsqr.js?v=2010";              // debe estar en la misma carpeta (está en los 3 repos)
+    s.src = "jsqr.js?v=2011";              // debe estar en la misma carpeta (está en los 3 repos)
     s.onload = res; s.onerror = function () { rej(new Error("No se pudo cargar jsqr.js (¿está en la carpeta?)")); };
     document.head.appendChild(s);
   });

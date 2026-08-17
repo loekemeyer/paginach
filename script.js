@@ -6956,7 +6956,7 @@ function _expoParseQR(raw) {
 // Layout POSICIONAL confirmado sobre el QR real
 //   (raw: mailto:SRL%7C43322970%7C30515842450%7C1130982609%7Ctomibeviglia@gmail.com):
 //     0:RAZÓN SOCIAL | 1:DNI | 2:CUIT | 3:TELÉFONO | 4:EMAIL
-// DNI (1) y teléfono (3) se ignoran a propósito; se toma razón social, CUIT y email.
+// DNI (1) se ignora a propósito; se toma razón social, CUIT, teléfono y email.
 function _expoParseMailto(text) {
   var body = text.replace(/^mailto:/i, "");
   try { body = decodeURIComponent(body); } catch (e) {}
@@ -6966,9 +6966,11 @@ function _expoParseMailto(text) {
     var out = { source: "qr_visitante" };
     var razon = (f[0] || "").trim();
     var cuit = (f[2] || "").replace(/\D/g, "");
+    var tel = (f[3] || "").replace(/\D/g, "");
     var email = (f[4] || "").trim();
     if (razon) out.company = razon;
     if (cuit.length === 11) out.cuit = cuit;
+    if (tel) out.whatsapp = tel;
     if (email && email.indexOf("@") > 0) out.email = email;
     return out;
   }
