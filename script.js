@@ -560,6 +560,17 @@ async function login() {
       }
       return;
     }
+
+    // La RPC devuelve el CUIT (text); armar el email interno con él.
+    email = cuitToInternalEmail(row);
+    if (!email) {
+      const err = $("loginError");
+      if (err) {
+        err.innerText = "CUIT inválido para ese usuario.";
+        err.style.display = "block";
+      }
+      return;
+    }
   }
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({
