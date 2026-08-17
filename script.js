@@ -6942,6 +6942,9 @@ function _expoParseQR(raw) {
   var text = String(raw == null ? "" : raw).trim();
   if (!text) return { source: "vacio" };
   if (/^BEGIN:VCARD/i.test(text)) return _expoParseVCard(text);
+  // mailto:/tel: → suele venir de la cámara nativa de iOS masticando el QR
+  // (pierde nombre y parte de la empresa). Se saca lo que se puede por contenido.
+  if (/^(mailto:|tel:)/i.test(text)) return _expoParseHeur(text);
   if (_expoIsExpoPresentes(text)) return _expoParseExpoPresentes(text);
   if (/^https?:\/\//i.test(text)) return _expoParseUrl(text);
   if (/^MECARD:/i.test(text)) return _expoParseMecard(text);
@@ -6979,6 +6982,20 @@ function _expoParseExpoPresentes(text) {
   return out;
 }
 
+
+// Extractor por CONTENIDO (fallback para strings masticados: mailto:, tel:, etc.).
+// Saca email, CUIT (11 díg) y teléfono (10 díg); NO intenta razón social.
+function _expoParseHeur(text) {
+  var out = { source: "qr_heuristico" };
+  var email = (text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [])[0];
+  if (email) out.email = email;
+  var cuit = (text.match(/(?:^|\D)(\d{11})(?:\D|$)/) || [])[1];
+  if (cuit) out.cuit = cuit;
+  var resto = cuit ? text.replace(cuit, "") : text;
+  var tel = (resto.match(/(?:^|\D)(\d{10})(?:\D|$)/) || [])[1];
+  if (tel) out.whatsapp = tel;
+  return out;
+}
 function _expoParseVCard(text) {
   function grab(re) { var m = text.match(re); return m ? m[1].trim() : ""; }
   var fn = grab(/(?:^|\n)FN:(.+)/i);
