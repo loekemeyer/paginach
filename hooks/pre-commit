@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-commit hook: auto-increment version and update cache-busting params
+#
+# Bumpea el patch en version.js y sincroniza los ?v= de los HTML para que el
+# navegador no sirva assets viejos.
+#
+# POR QUÉ ESTÁ VERSIONADO ACÁ Y NO EN .git/hooks
+# .git/hooks no se versiona: vive solo en cada clon. Un arreglo hecho ahí no
+# llega a las otras máquinas ni queda registrado. Por eso los hooks viven en
+# hooks/ y se activan una sola vez por clon con:
+#
+#     git config core.hooksPath hooks
+#
+# (ver CLAUDE.md -> Versionamiento automático)
+
+set -e
+
+STAGED_FILES=$(git diff --cached --name-only)
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+if [ -f "version.js" ]; then
+  CURRENT_VERSION=$(grep -oP 'const APP_VERSION = "\K[^"]+' version.js)
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+  NEW_PATCH=$((PATCH + 1))
+  NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+  NEW_VERSION_PARAM="${MAJOR}${MINOR}${NEW_PATCH}"
+
+  sed -i "s/const APP_VERSION = \"[^\"]*\"/const APP_VERSION = \"$NEW_VERSION\"/" version.js
+  git add version.js
+
+  # Actualizar los ?v= de TODOS los assets en los HTML.
+  # El .css va aparte del .js a propósito: antes el sed sólo matcheaba
+  # `.js?v=`, así que los `.css?v=` quedaban congelados en el valor que
+  # alguien hubiera puesto a mano. Resultado: se desplegaban estilos nuevos
+  # y el navegador seguía sirviendo el CSS cacheado, sin ninguna señal de
+  # que algo estaba mal.
+  find . -maxdepth 2 -name "*.html" -type f 2>/dev/null | while read -r html_file; do
+    sed -i "s/\.js?v=[0-9a-zA-Z-]*/.js?v=$NEW_VERSION_PARAM/g" "$html_file"
+    sed -i "s/\.css?v=[0-9a-zA-Z-]*/.css?v=$NEW_VERSION_PARAM/g" "$html_file"
+    git add "$html_file"
+  done
+fi
+
+exit 0

@@ -1,0 +1,82 @@
+#!/bin/bash
+# Prepare-commit-msg hook: generate descriptive commit message with specific file changes
+#
+# Ver la nota de hooks/pre-commit sobre por qué los hooks viven acá y no en
+# .git/hooks, y cómo activarlos.
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# Skip if it's a merge, squash, or amend
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ] || [ "$COMMIT_SOURCE" = "commit" ]; then
+  exit 0
+fi
+
+if [ ! -f "version.js" ]; then
+  exit 0
+fi
+
+# OJO CON EL ORDEN: este hook corre DESPUÉS de pre-commit, que ya bumpeó
+# version.js. O sea que lo que hay en el archivo es la versión NUEVA, no la
+# vieja. Antes se leía version.js y se le sumaba 1, así que el mensaje
+# anunciaba un bump que el commit no contenía: cada commit decía "2.3.76 →
+# 2.3.77" y adentro traía 2.3.76. La versión vieja se saca de HEAD, que es lo
+# único que todavía la tiene.
+NEW_VERSION=$(grep -oP 'const APP_VERSION = "\K[^"]+' version.js)
+OLD_VERSION=$(git show HEAD:version.js 2>/dev/null | grep -oP 'const APP_VERSION = "\K[^"]+')
+
+# Primer commit del repo (no hay HEAD): se deduce restando 1 al patch.
+if [ -z "$OLD_VERSION" ]; then
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW_VERSION"
+  OLD_VERSION="$MAJOR.$MINOR.$((PATCH - 1))"
+fi
+
+STAGED_FILES=$(git diff --cached --name-only)
+
+COMMIT_MSG="bump: version $OLD_VERSION → $NEW_VERSION"
+COMMIT_MSG+=$'\n\nCambios:'
+
+declare -a FILE_CHANGES
+
+for file in $STAGED_FILES; do
+  # Skip lock files and version.js (already in title)
+  if [[ "$file" == ".locks/"* ]] || [[ "$file" == "version.js" ]]; then
+    continue
+  fi
+
+  STATUS=$(git diff --cached --name-status "$file" | awk '{print $1}')
+
+  if [[ "$file" == *.css ]]; then
+    FILE_TYPE="estilos CSS"
+  elif [[ "$file" == *.js ]]; then
+    FILE_TYPE="script JS"
+  elif [[ "$file" == *.html ]]; then
+    FILE_TYPE="archivo HTML"
+  elif [[ "$file" == *.json ]]; then
+    FILE_TYPE="configuración JSON"
+  elif [[ "$file" == *.sql ]]; then
+    FILE_TYPE="script SQL"
+  else
+    FILE_TYPE="archivo"
+  fi
+
+  case "$STATUS" in
+    A)
+      FILE_CHANGES+=("- $file: $FILE_TYPE nuevo")
+      ;;
+    M)
+      FILE_CHANGES+=("- $file: $FILE_TYPE modificado")
+      ;;
+    D)
+      FILE_CHANGES+=("- $file: $FILE_TYPE eliminado")
+      ;;
+  esac
+done
+
+for change in "${FILE_CHANGES[@]}"; do
+  COMMIT_MSG+=$'\n'"$change"
+done
+
+echo -e "$COMMIT_MSG" > "$COMMIT_MSG_FILE"
+
+exit 0

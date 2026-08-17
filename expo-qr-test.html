@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Test QR Expo</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; padding: 14px; max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 14px; opacity: .7; font-size: 13px; }
+  button { font: inherit; padding: 12px 16px; border-radius: 10px; border: 0; cursor: pointer; }
+  .primary { background: #e8622a; color: #fff; width: 100%; font-weight: 700; font-size: 17px; }
+  textarea { width: 100%; min-height: 70px; font: 13px/1.35 ui-monospace, monospace; padding: 10px; border-radius: 8px; border: 1px solid #8886; }
+  .row { margin: 12px 0; }
+  .card { border: 1px solid #8884; border-radius: 12px; padding: 12px; margin-top: 12px; }
+  .raw { font: 12px/1.3 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; background: #8881; padding: 8px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+  td { padding: 6px 8px; border-bottom: 1px solid #8883; vertical-align: top; }
+  td:first-child { opacity: .6; width: 34%; }
+  .src { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 20px; background: #2a9d3a; color: #fff; font-size: 12px; font-weight: 700; }
+  .empty { opacity: .45; }
+  /* Overlay cámara */
+  #scan { position: fixed; inset: 0; background: #000; display: none; z-index: 99; flex-direction: column; align-items: center; justify-content: center; }
+  #scan video { width: 100%; max-height: 74vh; object-fit: cover; }
+  #frame { position: absolute; width: 62vw; max-width: 300px; aspect-ratio: 1; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 100vmax #0007; }
+  #hint { position: absolute; top: 8%; color: #fff; background: #0008; padding: 8px 14px; border-radius: 20px; font-size: 14px; }
+  #cancel { position: absolute; bottom: 6%; background: #fff; color: #000; font-weight: 700; }
+  small.note { display: block; opacity: .6; margin-top: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>🔎 Test lector QR — Expo</h1>
+  <p class="sub">Mismo parser del sitio (versión unión: <code>mailto:</code> con pipes + <code>tel:</code> + vCard/MECARD/URL/Expo&nbsp;Presentes). Escaneá una credencial o pegá el texto crudo del QR abajo.</p>
+
+  <div class="row">
+    <button class="primary" id="btnScan">📷 Escanear QR de la credencial</button>
+    <small class="note">Necesita HTTPS y permiso de cámara. En iPhone: Safari.</small>
+  </div>
+
+  <div class="row">
+    <label style="font-size:13px;opacity:.75">…o pegá el texto crudo del QR (para probar sin cámara):</label>
+    <textarea id="rawIn" placeholder="Ej: 822126|JUAN|FARIAS|CHEF||||||&#10;o: mailto:SRL|43322970|30515842450|1130982609|mail@x.com"></textarea>
+    <button id="btnParse" style="margin-top:8px;background:#8883">Parsear texto</button>
+  </div>
+
+  <div id="out"></div>
+
+  <!-- Overlay cámara -->
+  <div id="scan">
+    <video id="video" playsinline muted autoplay></video>
+    <div id="frame"></div>
+    <div id="hint">Apuntá al QR de la credencial…</div>
+    <button id="cancel">Cancelar</button>
+  </div>
+
+<script>
+/* ============================================================
+   PARSER UNIÓN — combina lo de LK/Chef (_expoParseHeur + tel:)
+   con lo de Elias (_expoParseMailto pipe-aware). Es el que
+   convendría dejar en los 3 sitios para que sean espejo.
+   ============================================================ */
+function parseQR(raw) {
+  var text = String(raw == null ? "" : raw).trim();
+  if (!text) return { source: "vacio" };
+  if (/^BEGIN:VCARD/i.test(text)) return parseVCard(text);
+  if (/^mailto:/i.test(text)) return parseMailto(text);          // Elias: pipe-aware
+  if (/^tel:/i.test(text)) return parseHeur(text);               // LK/Chef: tel iOS
+  if (isExpoPresentes(text)) return parseExpoPresentes(text);
+  if (/^https?:\/\//i.test(text)) return parseUrl(text);
+  if (/^MECARD:/i.test(text)) return parseMecard(text);
+  return { fullName: text, source: "qr_text" };
+}
+
+function isExpoPresentes(text) {
+  if (text.indexOf("|") < 0) return false;
+  var f = text.split("|");
+  if (f.length < 5) return false;
+  var c0 = (f[0] || "").trim();
+  return c0.length > 0 && c0.length <= 20 && /^[A-Za-z0-9-]+$/.test(c0);
+}
+function parseExpoPresentes(text) {
+  var f = text.split("|");
+  var nombre = (f[1] || "").trim(), apellido = (f[2] || "").trim(), empresa = (f[3] || "").trim();
+  var cuit = (f[5] || "").replace(/\D/g, ""), tel = (f[6] || "").replace(/\D/g, ""), email = (f[7] || "").trim();
+  var full = (nombre + " " + apellido).trim();
+  var out = { fullName: full || undefined, company: empresa || undefined, source: "qr_expo_presentes" };
+  if (cuit.length === 11) out.cuit = cuit;
+  if (tel) out.whatsapp = tel;
+  if (email && email.indexOf("@") > 0) out.email = email;
+  return out;
+}
+// Visitante iOS: mailto:SRL|DNI|CUIT|tel|email  (Elias)
+function parseMailto(text) {
+  var body = text.replace(/^mailto:/i, "");
+  try { body = decodeURIComponent(body); } catch (e) {}
+  body = body.trim();
+  if (body.indexOf("|") >= 0) {
+    var f = body.split("|"), out = { source: "qr_visitante" };
+    var LEGAL = /^(srl|sa|sas|s\.?a\.?|s\.?r\.?l\.?|sacif|sacifa|sacifia|sh|sc)$/i;
+    f.forEach(function (r) {
+      var v = (r || "").trim(); if (!v) return;
+      if (v.indexOf("@") > 0) { if (!out.email) out.email = v; return; }
+      if (/^\d{11}$/.test(v)) { if (!out.cuit) out.cuit = v; return; }
+      if (/^\d{10}$/.test(v)) { if (!out.whatsapp) out.whatsapp = v; return; }
+      if (/^\d+$/.test(v)) return;
+      if (!LEGAL.test(v) && v.length >= 3 && !out.company) out.company = v;
+    });
+    return out;
+  }
+  return { email: body || undefined, source: "qr_mailto" };
+}
+// Fallback por contenido (tel:, texto masticado) (LK/Chef)
+function parseHeur(text) {
+  var out = { source: "qr_heuristico" };
+  var email = (text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [])[0];
+  if (email) out.email = email;
+  var cuit = (text.match(/(?:^|\D)(\d{11})(?:\D|$)/) || [])[1];
+  if (cuit) out.cuit = cuit;
+  var resto = cuit ? text.replace(cuit, "") : text;
+  var tel = (resto.match(/(?:^|\D)(\d{10})(?:\D|$)/) || [])[1];
+  if (tel) out.whatsapp = tel;
+  return out;
+}
+function parseVCard(text) {
+  function g(re) { var m = text.match(re); return m ? m[1].trim() : ""; }
+  var fn = g(/(?:^|\n)FN:(.+)/i);
+  if (!fn) { var n = g(/(?:^|\n)N:(.+)/i); if (n) fn = n.split(";").filter(Boolean).reverse().join(" ").trim(); }
+  return { fullName: fn || undefined, company: g(/(?:^|\n)ORG:(.+)/i) || undefined,
+    whatsapp: g(/(?:^|\n)TEL[^:]*:(.+)/i) || undefined, email: g(/(?:^|\n)EMAIL[^:]*:(.+)/i) || undefined,
+    position: g(/(?:^|\n)TITLE:(.+)/i) || undefined, source: "qr_vcard" };
+}
+function parseMecard(text) {
+  function g(k) { var m = text.match(new RegExp(k + ":([^;]*)", "i")); return m ? m[1].trim() : ""; }
+  var n = g("N"); if (n) n = n.split(",").filter(Boolean).reverse().join(" ").trim();
+  return { fullName: n || undefined, whatsapp: g("TEL") || undefined, email: g("EMAIL") || undefined, company: g("ORG") || undefined, source: "qr_mecard" };
+}
+function parseUrl(text) {
+  var out = { source: "qr_url" };
+  try { var u = new URL(text), q = u.searchParams;
+    var n = q.get("nombre") || q.get("name"), e = q.get("empresa") || q.get("company");
+    var w = q.get("whatsapp") || q.get("tel") || q.get("phone"), m = q.get("email");
+    if (n) out.fullName = n; if (e) out.company = e; if (w) out.whatsapp = w; if (m) out.email = m;
+  } catch (e) {}
+  return out;
+}
+
+/* ---------- Render ---------- */
+function render(raw) {
+  var p = parseQR(raw);
+  var campos = [
+    ["Razón social", p.company || p.fullName],
+    ["CUIT", p.cuit],
+    ["WhatsApp", p.whatsapp ? String(p.whatsapp).replace(/\D/g, "") : ""],
+    ["Mail", p.email],
+    ["Nombre", p.fullName],
+  ];
+  var filled = campos.filter(function (c) { return c[1]; }).length;
+  var rows = campos.map(function (c) {
+    return "<tr><td>" + c[0] + "</td><td class='" + (c[1] ? "" : "empty") + "'>" + (c[1] || "—") + "</td></tr>";
+  }).join("");
+  document.getElementById("out").innerHTML =
+    "<div class='card'><div style='font-weight:700;margin-bottom:6px'>" +
+    (filled ? "✅ " + filled + " campo(s) leídos" : "⚠️ Sin datos aprovechables") + "</div>" +
+    "<div class='raw'>" + escapeHtml(raw) + "</div>" +
+    "<table>" + rows + "</table>" +
+    "<span class='src'>formato: " + (p.source || "?") + "</span></div>";
+}
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+/* ---------- Cámara + jsQR ---------- */
+var stream = null, raf = null, jsqrLoading = null;
+function loadJsQR() {
+  if (window.jsQR) return Promise.resolve();
+  if (jsqrLoading) return jsqrLoading;
+  jsqrLoading = new Promise(function (res, rej) {
+    var s = document.createElement("script");
+    s.src = "jsqr.js?v=209";              // debe estar en la misma carpeta (está en los 3 repos)
+    s.onload = res; s.onerror = function () { rej(new Error("No se pudo cargar jsqr.js (¿está en la carpeta?)")); };
+    document.head.appendChild(s);
+  });
+  return jsqrLoading;
+}
+function stopScan() {
+  if (raf) { cancelAnimationFrame(raf); raf = null; }
+  if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} stream = null; }
+  document.getElementById("scan").style.display = "none";
+}
+function startScan() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Este navegador no permite cámara. Probá pegar el texto del QR abajo."); return;
+  }
+  var ov = document.getElementById("scan"), video = document.getElementById("video"), hint = document.getElementById("hint");
+  ov.style.display = "flex";
+  loadJsQR().then(function () {
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+  }).then(function (st) {
+    stream = st; video.srcObject = st; video.setAttribute("playsinline", ""); return video.play();
+  }).then(function () {
+    var canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var tick = function () {
+      if (!stream) return;
+      if (video.readyState >= 2 && video.videoWidth) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var code = window.jsQR ? window.jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" }) : null;
+          if (code && code.data) { stopScan(); document.getElementById("rawIn").value = code.data; render(code.data); return; }
+        } catch (e) {}
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }).catch(function (err) {
+    hint.textContent = "No se pudo abrir: " + (err && err.message ? err.message : err);
+    setTimeout(stopScan, 3000);
+  });
+}
+
+document.getElementById("btnScan").onclick = startScan;
+document.getElementById("cancel").onclick = stopScan;
+document.getElementById("btnParse").onclick = function () {
+  var v = document.getElementById("rawIn").value; if (v.trim()) render(v);
+};
+</script>
+</body>
+</html>

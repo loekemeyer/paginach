@@ -6942,13 +6942,43 @@ function _expoParseQR(raw) {
   var text = String(raw == null ? "" : raw).trim();
   if (!text) return { source: "vacio" };
   if (/^BEGIN:VCARD/i.test(text)) return _expoParseVCard(text);
-  // mailto:/tel: → suele venir de la cámara nativa de iOS masticando el QR
-  // (pierde nombre y parte de la empresa). Se saca lo que se puede por contenido.
-  if (/^(mailto:|tel:)/i.test(text)) return _expoParseHeur(text);
+  // mailto: → visitante Expo Presentes con pipes (razón social, CUIT, tel, mail).
+  // tel: → cámara nativa de iOS masticando el QR; se saca lo que se puede por contenido.
+  if (/^mailto:/i.test(text)) return _expoParseMailto(text);
+  if (/^tel:/i.test(text)) return _expoParseHeur(text);
   if (_expoIsExpoPresentes(text)) return _expoParseExpoPresentes(text);
   if (/^https?:\/\//i.test(text)) return _expoParseUrl(text);
   if (/^MECARD:/i.test(text)) return _expoParseMecard(text);
   return { fullName: text, source: "qr_text" };
+}
+
+// Credencial VISITANTE Expo Presentes: mailto: + pipe-delimited.
+// Ej (crudo): mailto:SRL|43322970|30515842450|1130982609|tomibeviglia@gmail.com
+//   -> tipo societario (SRL) | DNI | CUIT | teléfono | email
+// La razón social (nombre) NO viaja en el QR del visitante (está impresa en la
+// credencial pero no codificada); queda para cargar a mano. Se mapea lo que sí
+// está: CUIT, teléfono y email. Si el 1er campo fuera un nombre real (no un
+// sufijo societario) se usa como razón social.
+function _expoParseMailto(text) {
+  var body = text.replace(/^mailto:/i, "");
+  try { body = decodeURIComponent(body); } catch (e) {}
+  body = body.trim();
+  if (body.indexOf("|") >= 0) {
+    var f = body.split("|");
+    var out = { source: "qr_visitante" };
+    var LEGAL = /^(srl|sa|sas|s\.?a\.?|s\.?r\.?l\.?|sacif|sacifa|sacifia|sh|sc)$/i;
+    f.forEach(function (raw) {
+      var v = (raw || "").trim();
+      if (!v) return;
+      if (v.indexOf("@") > 0) { if (!out.email) out.email = v; return; }
+      if (/^\d{11}$/.test(v)) { if (!out.cuit) out.cuit = v; return; }   // CUIT
+      if (/^\d{10}$/.test(v)) { if (!out.whatsapp) out.whatsapp = v; return; } // tel
+      if (/^\d+$/.test(v)) return; // DNI u otros números: ignorar
+      if (!LEGAL.test(v) && v.length >= 3 && !out.company) out.company = v;
+    });
+    return out;
+  }
+  return { email: body || undefined, source: "qr_mailto" };
 }
 
 function _expoIsExpoPresentes(text) {
