@@ -7,10 +7,11 @@
     <link rel="icon" type="image/png" href="img/favicon-opt.png" />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/analisis-venta-cliente.css" />
-    <link rel="stylesheet" href="css/admin.css?v=2011" />
+    <link rel="stylesheet" href="css/admin.css?v=2012" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   </head>
   <body>
@@ -1690,6 +1691,15 @@
               </button>
               <button
                 type="button"
+                id="btnCatalogoPDF"
+                class="avc-btn avc-btn-primary"
+                title="Catálogo con fotos para mostrarle al cliente (a ofrecer + bajas)"
+                disabled
+              >
+                📄 Catálogo PDF
+              </button>
+              <button
+                type="button"
                 id="btnReporteTotal"
                 class="avc-btn avc-btn-ghost"
                 title="Genera reporte de TODOS los clientes"
@@ -2410,12 +2420,12 @@
       </div>
     </div>
 
-    <script src="./version.js?v=2011"></script>
-    <script src="excel-parser-smart.js?v=2011"></script>
-    <script src="argentina-map-data.js?v=2011"></script>
-    <script src="admin.js?v=2011"></script>
-    <script src="admin-supercot.js?v=2011"></script>
-    <script src="admin-excel-krikos.js?v=2011"></script>
-    <script src="analisis-venta-cliente.js?v=2011"></script>
+    <script src="./version.js?v=2012"></script>
+    <script src="excel-parser-smart.js?v=2012"></script>
+    <script src="argentina-map-data.js?v=2012"></script>
+    <script src="admin.js?v=2012"></script>
+    <script src="admin-supercot.js?v=2012"></script>
+    <script src="admin-excel-krikos.js?v=2012"></script>
+    <script src="analisis-venta-cliente.js?v=2012"></script>
   </body>
 </html>
