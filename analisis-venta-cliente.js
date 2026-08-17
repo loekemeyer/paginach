@@ -1238,6 +1238,40 @@ function avcLoadImageDataURL(src) {
   });
 }
 
+// ---- Motor de equivalencias de código (misma lógica que el mayorista) ----
+var AVC_EQUIV_VARIANT = {
+  cromado: 1, cromada: 1, niquelado: 1, niquelada: 1, rojo: 1, roja: 1,
+  color: 1, colores: 1, metalizado: 1, metalizada: 1, metalizados: 1,
+  acacia: 1, nylon: 1, silicona: 1, silicon: 1, inox: 1, inoxidable: 1,
+  acero: 1, madera: 1, loeke: 1, ergonomico: 1, bambu: 1, premium: 1,
+  alambre: 1, plastico: 1, plastica: 1, mgo: 1, mango: 1, capuchon: 1,
+  super: 1, tradicional: 1, chata: 1, ac: 1
+};
+var AVC_EQUIV_PREMIUM = { acacia: 1, inox: 1, inoxidable: 1, acero: 1, silicona: 1, premium: 1, bambu: 1 };
+function avcEquivNorm(s) {
+  return String(s || "").toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+function avcEquivBase(desc) {
+  var toks = avcEquivNorm(desc).split(" ").filter(function (t) {
+    if (!t) return false;
+    if (AVC_EQUIV_VARIANT[t]) return false;
+    if (/^\d+(cm|mm|ml|lt|l|pza)?$/.test(t)) return false;
+    if (t.length === 1) return false;
+    if (t === "de" || t === "la" || t === "el" || t === "con" || t === "para" ||
+        t === "pza" || t === "pieza" || t === "uso" || t === "usos" || t === "pie") return false;
+    return true;
+  });
+  if (toks[0] && toks[0].length > 4 && toks[0].slice(-1) === "s") toks[0] = toks[0].slice(0, -1);
+  return toks.join(" ");
+}
+function avcEquivTier(desc) {
+  var toks = avcEquivNorm(desc).split(" ");
+  for (var i = 0; i < toks.length; i++) if (AVC_EQUIV_PREMIUM[toks[i]]) return 1;
+  return 0;
+}
+
 async function avcDescargarCatalogoPDF() {
   if (!currentCustomer) { alert("Elegí un cliente primero."); return; }
   if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -1250,11 +1284,98 @@ async function avcDescargarCatalogoPDF() {
   }
   if (!br) br = branches[0];
   var a = (br && br.analysis) || {};
-  // Catálogo AMPLIO: más vendidos que no compra. Fallback a "A Ofrecer" (nuevos).
-  var aOfrecer = avcCatalogoOfrecer(20);
-  if (!aOfrecer.length) aOfrecer = (a.aOfrecer || []).slice(0, TOP_OFRECER);
-  var bajas = a.bajas || [];
-  if (!aOfrecer.length && !bajas.length) {
+  var purchased = avcPurchasedSet || new Set();
+
+  // --- Equivalencias: base -> grupo, y qué base YA lleva el cliente ---
+  var groupByBase = {};
+  var baseOf = {};
+  Object.keys(productByCod).forEach(function (cod) {
+    var p = productByCod[cod];
+    if (!p || p.active === false) return;
+    var b = avcEquivBase(p.descripcion || "");
+    if (!b) return;
+    baseOf[cod] = b;
+    var em = estadisticaMadre[cod];
+    (groupByBase[b] = groupByBase[b] || []).push({
+      cod: cod,
+      desc: p.descripcion || cod,
+      tier: avcEquivTier(p.descripcion || ""),
+      precio: p.listPrice && p.uxb ? p.listPrice * p.uxb : null,
+      uxb: p.uxb || null,
+      ranking: em ? em.ranking : null,
+    });
+  });
+  var carried = {};
+  purchased.forEach(function (cod) {
+    var b = baseOf[cod];
+    if (!b) return;
+    var p = productByCod[cod];
+    var d = (p && p.descripcion) || cod;
+    var t = avcEquivTier((p && p.descripcion) || "");
+    if (!carried[b] || t > carried[b].tier) carried[b] = { tier: t, desc: d };
+  });
+
+  // --- SUMAR: más vendidos que no compra, SIN equivalentes de lo que ya lleva ---
+  var ofrecer = avcCatalogoOfrecer(60);
+  var sumar = [];
+  for (var k = 0; k < ofrecer.length && sumar.length < 16; k++) {
+    var o = ofrecer[k];
+    if (carried[baseOf[o.cod]]) continue;
+    var p = productByCod[o.cod];
+    var sub = o.categoria ? o.categoria + ". " : "";
+    if (o.mult && o.mult >= 1.3) {
+      sub += "Se vende ~" + (o.mult >= 10 ? Math.round(o.mult) : o.mult.toFixed(1)) +
+        "× más que tu compra promedio.";
+    } else if (o.e_madre) { sub += "Buena demanda en el mercado."; }
+    sumar.push({
+      cod: o.cod, titulo: o.descripcion || o.cod,
+      precio: p && p.listPrice && p.uxb ? p.listPrice * p.uxb : null,
+      uxb: p && p.uxb ? p.uxb : null,
+      sub: sub || "Producto del catálogo con demanda.", ranking: o.ranking,
+    });
+  }
+
+  // --- MEJORÁ: por cada base que lleva en estándar, la versión premium equivalente ---
+  var upgrades = [];
+  var seenUp = {};
+  Object.keys(carried).forEach(function (b) {
+    if (carried[b].tier >= 1) return;
+    (groupByBase[b] || []).forEach(function (g) {
+      if (g.tier < 1 || purchased.has(g.cod) || seenUp[g.cod]) return;
+      seenUp[g.cod] = 1;
+      upgrades.push({
+        cod: g.cod, titulo: g.desc, precio: g.precio, uxb: g.uxb,
+        sub: "Vos llevás " + String(carried[b].desc).trim() + ". Probá esta versión premium.",
+        ranking: g.ranking,
+      });
+    });
+  });
+  upgrades.sort(function (m, n) {
+    var rm = m.ranking == null ? 1e9 : m.ranking, rn = n.ranking == null ? 1e9 : n.ranking;
+    return rm - rn;
+  });
+  upgrades = upgrades.slice(0, 8);
+
+  // --- BAJAS: productos que dejó de llevar ---
+  var bajasRaw = a.bajas || [];
+  var bajas = bajasRaw.map(function (b) {
+    var p = productByCod[b.cod];
+    var last = b.ultimaCompra ? new Date(b.ultimaCompra) : null;
+    var lastTxt = last ? "Última compra: " + last.toLocaleDateString("es-AR") : "";
+    var extra = b.comprasCount ? "  ·  " + b.comprasCount + " compras" : "";
+    return {
+      cod: b.cod, titulo: b.descripcion || (p && p.descripcion) || b.cod,
+      precio: p && p.listPrice && p.uxb ? p.listPrice * p.uxb : null,
+      uxb: p && p.uxb ? p.uxb : null,
+      sub: (lastTxt + extra).trim() || "Lo comprabas antes.",
+    };
+  }).slice(0, 16);
+
+  var secciones = [];
+  if (sumar.length) secciones.push({ titulo: "PRODUCTOS PARA SUMAR", items: sumar });
+  if (upgrades.length) secciones.push({ titulo: "MEJORÁ LO QUE YA LLEVÁS", items: upgrades });
+  if (bajas.length) secciones.push({ titulo: "PRODUCTOS QUE DEJASTE DE LLEVAR", items: bajas });
+  if (!secciones.length) {
     alert("Este cliente no tiene productos para ofrecer ni bajas para mostrar.");
     return;
   }
@@ -1262,108 +1383,111 @@ async function avcDescargarCatalogoPDF() {
   var btn = document.getElementById("btnCatalogoPDF");
   var btnTxt = btn ? btn.innerHTML : "";
   if (btn) { btn.disabled = true; btn.innerHTML = "Generando…"; }
-
   try {
-    var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF("p", "mm", "a4");
-    var W = 210, H = 297, M = 14;
     var rs = (currentCustomer.business_name || "Cliente").trim();
-
-    doc.setFillColor(17, 24, 39);
-    doc.rect(0, 0, W, 46, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("SELECCIÓN PREPARADA PARA", M, 18);
-    doc.setFontSize(20);
-    doc.text(rs.toUpperCase().slice(0, 38), M, 30);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(210, 210, 210);
-    doc.text(
-      "Cod " + (currentCustomer.cod_cliente || "") + "  ·  Productos elegidos para vos",
-      M, 40
-    );
-    doc.setTextColor(0, 0, 0);
-    var y = 56;
-
-    function seccion(txt) {
-      if (y > H - 44) { doc.addPage(); y = M + 6; }
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(180, 30, 30);
-      doc.text(txt, M, y);
-      doc.setTextColor(0, 0, 0);
-      y += 3;
-      doc.setDrawColor(220, 220, 220);
-      doc.line(M, y, W - M, y);
-      y += 8;
-    }
-
-    async function card(cod, titulo, sub) {
-      var photoW = 34, rowH = 40;
-      if (y + rowH > H - M) { doc.addPage(); y = M + 6; }
-      var dataUrl = await avcLoadImageDataURL(
-        AVC_BASE_IMG + encodeURIComponent(cod) + ".jpg"
-      );
-      if (dataUrl) {
-        try { doc.addImage(dataUrl, "JPEG", M, y, photoW, photoW); } catch (e) {}
-      } else {
-        doc.setDrawColor(225, 225, 225);
-        doc.rect(M, y, photoW, photoW);
-        doc.setFontSize(7);
-        doc.setTextColor(160, 160, 160);
-        doc.text("sin foto", M + 9, y + 18);
-        doc.setTextColor(0, 0, 0);
-      }
-      var tx = M + photoW + 6;
-      var maxw = W - tx - M;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(doc.splitTextToSize(String(titulo), maxw), tx, y + 8);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(90, 90, 90);
-      doc.text(doc.splitTextToSize(String(sub), maxw), tx, y + 19);
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(240, 240, 240);
-      doc.line(M, y + rowH - 3, W - M, y + rowH - 3);
-      y += rowH;
-    }
-
-    if (aOfrecer.length) {
-      seccion("PRODUCTOS PARA SUMAR");
-      for (var k = 0; k < aOfrecer.length; k++) {
-        var o = aOfrecer[k];
-        var sub = o.categoria ? o.categoria + ". " : "";
-        if (o.mult && o.mult >= 1.3) {
-          sub += "Se vende ~" + (o.mult >= 10 ? Math.round(o.mult) : o.mult.toFixed(1)) +
-            "× más que tu compra promedio.";
-        } else if (o.e_madre) {
-          sub += "Buena demanda en el mercado.";
-        }
-        await card(o.cod, o.descripcion || o.cod, sub || "Producto nuevo del catálogo.");
-      }
-    }
-
-    if (bajas.length) {
-      seccion("PRODUCTOS QUE DEJASTE DE LLEVAR");
-      for (var j = 0; j < bajas.length; j++) {
-        var b = bajas[j];
-        var last = b.ultimaCompra ? new Date(b.ultimaCompra) : null;
-        var lastTxt = last ? "Última compra: " + last.toLocaleDateString("es-AR") : "";
-        var extra = b.comprasCount ? "  ·  " + b.comprasCount + " compras" : "";
-        await card(b.cod, b.descripcion || b.cod, (lastTxt + extra).trim() || "Lo comprabas antes.");
-      }
-    }
-
-    doc.save("catalogo_" + (currentCustomer.cod_cliente || "cliente") + ".pdf");
+    await avcBuildCatalogoPDF(rs, String(currentCustomer.cod_cliente || ""), secciones);
   } catch (e) {
     console.error("[AVC] catálogo PDF falló:", e);
     alert("No se pudo generar el catálogo: " + (e && e.message ? e.message : e));
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = btnTxt || "📄 Catálogo PDF"; }
   }
+}
+
+// Render 2 columnas con foto + precio + subtítulo (mismo layout que el mayorista).
+async function avcBuildCatalogoPDF(rs, cod, secciones) {
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF("p", "mm", "a4");
+  var W = 210, H = 297, M = 12, GAP = 8;
+  var colW = (W - 2 * M - GAP) / 2;
+  var photoW = 46, cardH = 82;
+  var y, col;
+
+  function money(n) {
+    if (n == null || !isFinite(n)) return "";
+    return "$" + Math.round(n).toLocaleString("es-AR");
+  }
+
+  doc.setFillColor(17, 24, 39);
+  doc.rect(0, 0, W, 42, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("SELECCIÓN PREPARADA PARA", M, 16);
+  doc.setFontSize(18);
+  doc.text(String(rs).toUpperCase().slice(0, 40), M, 27);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(200, 200, 200);
+  doc.text("Cod " + cod + "  ·  Productos elegidos para vos", M, 36);
+  doc.setTextColor(0, 0, 0);
+  y = 50; col = 0;
+
+  function nextPage() { doc.addPage(); y = M + 4; col = 0; }
+
+  function seccion(txt) {
+    if (col === 1) { y += cardH; col = 0; }
+    if (y > H - cardH - 12) nextPage();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(180, 30, 30);
+    doc.text(txt, M, y);
+    doc.setTextColor(0, 0, 0);
+    y += 2;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(M, y, W - M, y);
+    y += 7;
+  }
+
+  async function card(item) {
+    if (col === 0 && y + cardH > H - M) nextPage();
+    var x = M + col * (colW + GAP);
+    var px = x + (colW - photoW) / 2;
+    var dataUrl = await avcLoadImageDataURL(
+      AVC_BASE_IMG + encodeURIComponent(item.cod) + ".jpg"
+    );
+    if (dataUrl) {
+      try { doc.addImage(dataUrl, "JPEG", px, y, photoW, photoW); } catch (e) {}
+    } else {
+      doc.setDrawColor(230, 230, 230);
+      doc.rect(px, y, photoW, photoW);
+      doc.setFontSize(7);
+      doc.setTextColor(175, 175, 175);
+      doc.text("sin foto", x + colW / 2 - 6, y + photoW / 2);
+      doc.setTextColor(0, 0, 0);
+    }
+    var ty = y + photoW + 6;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    var tl = doc.splitTextToSize(String(item.titulo || item.cod), colW).slice(0, 2);
+    doc.text(tl, x, ty);
+    ty += tl.length * 4.4 + 1;
+    if (item.precio) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(20, 120, 40);
+      doc.text(money(item.precio) + (item.uxb ? " /caja (" + item.uxb + " u.)" : ""), x, ty);
+      doc.setTextColor(0, 0, 0);
+      ty += 5;
+    }
+    if (item.sub) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(110, 110, 110);
+      doc.text(doc.splitTextToSize(String(item.sub), colW).slice(0, 3), x, ty);
+      doc.setTextColor(0, 0, 0);
+    }
+    if (col === 0) { col = 1; } else { col = 0; y += cardH; }
+  }
+
+  for (var s = 0; s < (secciones || []).length; s++) {
+    seccion(secciones[s].titulo);
+    var items = secciones[s].items || [];
+    for (var i = 0; i < items.length; i++) await card(items[i]);
+    if (col === 1) { y += cardH; col = 0; }
+  }
+
+  doc.save("catalogo_" + cod + ".pdf");
 }
 if (typeof window !== "undefined") window.avcDescargarCatalogoPDF = avcDescargarCatalogoPDF;
 
