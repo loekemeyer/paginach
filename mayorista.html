@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <link rel="stylesheet" href="css/tokens.css">
-    <link rel="stylesheet" href="css/styles.css?v=2026-08-16-expo">
+    <link rel="stylesheet" href="css/styles.css?v=2026-08-17-closex">
     <link rel="stylesheet" href="css/analisis-venta-cliente.css">
     <link rel="icon" type="image/png" href="img/favicon.png">
   </head>
@@ -1098,6 +1098,7 @@
           aria-modal="true"
           aria-labelledby="expoNewTitle"
         >
+          <button type="button" class="expo-new-close-x" aria-label="Cerrar" title="Cerrar" onclick="_expoCloseNewModal()">✕</button>
           <div class="modal-title" id="expoNewTitle">Nuevo cliente</div>
 
           <!-- La clave (PIN) se genera sola y NO se muestra acá; va en el
@@ -1616,7 +1617,7 @@
 
     <!-- Tu JS -->
     <script defer src="config.js"></script>
-    <script defer src="script.js?v=20260817-login"></script>
+    <script defer src="script.js?v=20260817-closex"></script>
     <!-- Análisis de compras embebido en el perfil del cliente (lazy load) -->
     <script defer src="analisis-venta-cliente.js"></script>
 
