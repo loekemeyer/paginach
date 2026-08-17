@@ -6910,6 +6910,218 @@ window.expoClearCustomer = expoClearCustomer;
 window.expoCopiarResumen = expoCopiarResumen;
 window._expoCloseNewModal = _expoCloseNewModal;
 
+/* ===================================================================
+   EXPO — Lector de QR de credenciales (autocompleta "Nuevo cliente")
+   Escaneo con la cámara (jsQR self-hosted, anda en iOS Safari) + parser
+   multi-formato. El parseo (_expoParseQR) está aislado: cambiar de formato
+   es tocar UNA función.
+   Formato confirmado (credencial EXPOSITOR Expo Presentes), pipe-delimited:
+     CODE|NOMBRE|APELLIDO|EMPRESA||||||   ej: 822126|JUAN|FARIAS|CHEF||||||
+   OJO: el campo 3 es la EMPRESA (razón social), no el cargo. El formato del
+   VISITANTE no está confirmado; si viene pipe-delimited se parsea igual.
+   =================================================================== */
+var _expoQrStream = null;
+var _expoQrRaf = null;
+var _expoJsqrLoading = null;
+
+function _expoLoadJsQR() {
+  if (window.jsQR) return Promise.resolve();
+  if (_expoJsqrLoading) return _expoJsqrLoading;
+  _expoJsqrLoading = new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = "jsqr.js?v=1";
+    s.onload = function () { resolve(); };
+    s.onerror = function () { reject(new Error("No se pudo cargar el lector de QR")); };
+    document.head.appendChild(s);
+  });
+  return _expoJsqrLoading;
+}
+
+// --- Parseo del texto crudo del QR: detecta formato y devuelve campos ---
+function _expoParseQR(raw) {
+  var text = String(raw == null ? "" : raw).trim();
+  if (!text) return { source: "vacio" };
+  if (/^BEGIN:VCARD/i.test(text)) return _expoParseVCard(text);
+  if (_expoIsExpoPresentes(text)) return _expoParseExpoPresentes(text);
+  if (/^https?:\/\//i.test(text)) return _expoParseUrl(text);
+  if (/^MECARD:/i.test(text)) return _expoParseMecard(text);
+  return { fullName: text, source: "qr_text" };
+}
+
+function _expoIsExpoPresentes(text) {
+  if (text.indexOf("|") < 0) return false;
+  var f = text.split("|");
+  if (f.length < 5) return false;
+  var c0 = (f[0] || "").trim();
+  return c0.length > 0 && c0.length <= 20 && /^[A-Za-z0-9-]+$/.test(c0);
+}
+
+function _expoParseExpoPresentes(text) {
+  var f = text.split("|");
+  var nombre = (f[1] || "").trim();
+  var apellido = (f[2] || "").trim();
+  var empresa = (f[3] || "").trim();
+  var fullName = (nombre + " " + apellido).trim();
+  return {
+    fullName: fullName || undefined,
+    company: empresa || undefined,
+    source: "qr_expo_presentes",
+  };
+}
+
+function _expoParseVCard(text) {
+  function grab(re) { var m = text.match(re); return m ? m[1].trim() : ""; }
+  var fn = grab(/(?:^|\n)FN:(.+)/i);
+  if (!fn) {
+    var n = grab(/(?:^|\n)N:(.+)/i);
+    if (n) fn = n.split(";").filter(Boolean).reverse().join(" ").trim();
+  }
+  return {
+    fullName: fn || undefined,
+    company: grab(/(?:^|\n)ORG:(.+)/i) || undefined,
+    whatsapp: grab(/(?:^|\n)TEL[^:]*:(.+)/i) || undefined,
+    email: grab(/(?:^|\n)EMAIL[^:]*:(.+)/i) || undefined,
+    position: grab(/(?:^|\n)TITLE:(.+)/i) || undefined,
+    source: "qr_vcard",
+  };
+}
+
+function _expoParseMecard(text) {
+  function grab(k) { var m = text.match(new RegExp(k + ":([^;]*)", "i")); return m ? m[1].trim() : ""; }
+  var n = grab("N");
+  if (n) n = n.split(",").filter(Boolean).reverse().join(" ").trim();
+  return {
+    fullName: n || undefined,
+    whatsapp: grab("TEL") || undefined,
+    email: grab("EMAIL") || undefined,
+    company: grab("ORG") || undefined,
+    source: "qr_mecard",
+  };
+}
+
+function _expoParseUrl(text) {
+  var out = { source: "qr_url" };
+  try {
+    var u = new URL(text);
+    var q = u.searchParams;
+    var nombre = q.get("nombre") || q.get("name");
+    var empresa = q.get("empresa") || q.get("company");
+    var wsp = q.get("whatsapp") || q.get("tel") || q.get("phone");
+    var mail = q.get("email");
+    if (nombre) out.fullName = nombre;
+    if (empresa) out.company = empresa;
+    if (wsp) out.whatsapp = wsp;
+    if (mail) out.email = mail;
+  } catch (e) {}
+  return out;
+}
+
+// --- Rellena el formulario con lo que trajo el QR. Devuelve campos completados.
+function _expoFillFromQR(p) {
+  var llenos = [];
+  function set(id, val, label) {
+    if (!val) return;
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.value = val;
+    llenos.push(label);
+  }
+  // Razón social: empresa; si no vino empresa, el nombre completo.
+  set("expoNewRazon", p.company || p.fullName, "Razón social");
+  set("expoNewMail", p.email, "Mail");
+  if (p.whatsapp) set("expoNewWhatsapp", String(p.whatsapp).replace(/[^0-9]/g, ""), "WhatsApp");
+  if (p.province) {
+    var sel = document.getElementById("expoNewProvFiscal");
+    if (sel) {
+      var want = String(p.province).toLowerCase();
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (o.value && o.value.toLowerCase() === want) { sel.value = o.value; llenos.push("Provincia"); }
+      });
+    }
+  }
+  if (typeof _expoNewSyncComplete === "function") _expoNewSyncComplete();
+  return llenos;
+}
+
+// --- Escaneo con la cámara ---
+function _expoScanQR() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Este dispositivo/navegador no permite usar la cámara. Cargá los datos a mano.");
+    return;
+  }
+  var ov = document.getElementById("expoQrScan");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "expoQrScan";
+    ov.className = "expo-qr-scan";
+    ov.innerHTML =
+      '<div class="expo-qr-inner">' +
+      '<video id="expoQrVideo" playsinline muted autoplay></video>' +
+      '<div class="expo-qr-frame"></div>' +
+      '<div class="expo-qr-hint" id="expoQrHint">Apuntá al QR de la credencial…</div>' +
+      '<button type="button" class="expo-qr-cancel" onclick="_expoStopScan()">Cancelar</button>' +
+      "</div>";
+    document.body.appendChild(ov);
+  }
+  ov.style.display = "flex";
+  var video = document.getElementById("expoQrVideo");
+  var hint = document.getElementById("expoQrHint");
+
+  _expoLoadJsQR().then(function () {
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+  }).then(function (stream) {
+    _expoQrStream = stream;
+    video.srcObject = stream;
+    video.setAttribute("playsinline", "");
+    return video.play();
+  }).then(function () {
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var tick = function () {
+      if (!_expoQrStream) return;
+      if (video.readyState >= 2 && video.videoWidth) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var code = window.jsQR ? window.jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" }) : null;
+          if (code && code.data) { _expoOnQrDecoded(code.data); return; }
+        } catch (e) {}
+      }
+      _expoQrRaf = requestAnimationFrame(tick);
+    };
+    _expoQrRaf = requestAnimationFrame(tick);
+  }).catch(function (err) {
+    if (hint) hint.textContent = "No se pudo abrir la cámara: " + (err && err.message ? err.message : err);
+    setTimeout(_expoStopScan, 2800);
+  });
+}
+
+function _expoStopScan() {
+  if (_expoQrRaf) { cancelAnimationFrame(_expoQrRaf); _expoQrRaf = null; }
+  if (_expoQrStream) {
+    try { _expoQrStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+    _expoQrStream = null;
+  }
+  var ov = document.getElementById("expoQrScan");
+  if (ov) ov.style.display = "none";
+}
+
+function _expoOnQrDecoded(raw) {
+  _expoStopScan();
+  var p = _expoParseQR(raw);
+  var llenos = _expoFillFromQR(p);
+  var msg = llenos.length
+    ? "QR leído. Completado: " + llenos.join(", ") + ". Revisá y completá el resto."
+    : "QR leído pero sin datos para cargar (formato " + (p.source || "?") + "). Cargá a mano.";
+  if (typeof _expoNewStatus === "function") _expoNewStatus(msg, !llenos.length);
+  else alert(msg);
+}
+
+window._expoScanQR = _expoScanQR;
+window._expoStopScan = _expoStopScan;
+
 // ---- EXPO: Nuevo cliente (Fase 2) ----
 // Estado del alta en curso: permite pausar (guardar parcial) y volver a editar.
 var _expoNewState = { id: null, authId: null };

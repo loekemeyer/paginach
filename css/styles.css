@@ -12194,3 +12194,29 @@ body.is-scrolled .logo-img {
   letter-spacing: 0.3px;
   text-align: center;
 }
+
+/* ===== EXPO: botón + overlay del lector de QR ===== */
+.expo-qr-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #0e7490; color: #fff; border: none; border-radius: 9px;
+  padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer;
+  margin: 2px 0 14px;
+}
+.expo-qr-btn:hover { background: #155e75; }
+.expo-qr-scan {
+  position: fixed; inset: 0; z-index: 100000;
+  background: rgba(0,0,0,.92); display: none;
+  align-items: center; justify-content: center;
+}
+.expo-qr-inner { position: relative; width: 100%; max-width: 480px; padding: 16px; text-align: center; }
+#expoQrVideo { width: 100%; border-radius: 12px; background: #000; display: block; }
+.expo-qr-frame {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 62%; aspect-ratio: 1 / 1; border: 3px solid #fff; border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none;
+}
+.expo-qr-hint { color: #fff; margin-top: 14px; font-size: 15px; }
+.expo-qr-cancel {
+  margin-top: 14px; background: #fff; color: #111; border: none;
+  border-radius: 9px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
