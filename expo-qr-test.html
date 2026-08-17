@@ -91,22 +91,18 @@ function parseExpoPresentes(text) {
   if (email && email.indexOf("@") > 0) out.email = email;
   return out;
 }
-// Visitante iOS: mailto:SRL|DNI|CUIT|tel|email  (Elias)
+// Comerciante Expo Presentes: mailto: + pipe (%7C). Layout POSICIONAL:
+//   0:RAZÓN SOCIAL | 1:DNI | 2:CUIT | 3:TELÉFONO | 4:EMAIL  (DNI y tel se ignoran)
 function parseMailto(text) {
   var body = text.replace(/^mailto:/i, "");
   try { body = decodeURIComponent(body); } catch (e) {}
   body = body.trim();
   if (body.indexOf("|") >= 0) {
     var f = body.split("|"), out = { source: "qr_visitante" };
-    var LEGAL = /^(srl|sa|sas|s\.?a\.?|s\.?r\.?l\.?|sacif|sacifa|sacifia|sh|sc)$/i;
-    f.forEach(function (r) {
-      var v = (r || "").trim(); if (!v) return;
-      if (v.indexOf("@") > 0) { if (!out.email) out.email = v; return; }
-      if (/^\d{11}$/.test(v)) { if (!out.cuit) out.cuit = v; return; }
-      if (/^\d{10}$/.test(v)) { if (!out.whatsapp) out.whatsapp = v; return; }
-      if (/^\d+$/.test(v)) return;
-      if (!LEGAL.test(v) && v.length >= 3 && !out.company) out.company = v;
-    });
+    var razon = (f[0] || "").trim(), cuit = (f[2] || "").replace(/\D/g, ""), email = (f[4] || "").trim();
+    if (razon) out.company = razon;
+    if (cuit.length === 11) out.cuit = cuit;
+    if (email && email.indexOf("@") > 0) out.email = email;
     return out;
   }
   return { email: body || undefined, source: "qr_mailto" };
@@ -176,7 +172,7 @@ function loadJsQR() {
   if (jsqrLoading) return jsqrLoading;
   jsqrLoading = new Promise(function (res, rej) {
     var s = document.createElement("script");
-    s.src = "jsqr.js?v=209";              // debe estar en la misma carpeta (está en los 3 repos)
+    s.src = "jsqr.js?v=2010";              // debe estar en la misma carpeta (está en los 3 repos)
     s.onload = res; s.onerror = function () { rej(new Error("No se pudo cargar jsqr.js (¿está en la carpeta?)")); };
     document.head.appendChild(s);
   });

@@ -6952,13 +6952,11 @@ function _expoParseQR(raw) {
   return { fullName: text, source: "qr_text" };
 }
 
-// Credencial VISITANTE Expo Presentes: mailto: + pipe-delimited.
-// Ej (crudo): mailto:SRL|43322970|30515842450|1130982609|tomibeviglia@gmail.com
-//   -> tipo societario (SRL) | DNI | CUIT | teléfono | email
-// La razón social (nombre) NO viaja en el QR del visitante (está impresa en la
-// credencial pero no codificada); queda para cargar a mano. Se mapea lo que sí
-// está: CUIT, teléfono y email. Si el 1er campo fuera un nombre real (no un
-// sufijo societario) se usa como razón social.
+// Credencial COMERCIANTE/VISITANTE Expo Presentes: mailto: + pipe (URL-encoded, %7C = |).
+// Layout POSICIONAL confirmado sobre el QR real
+//   (raw: mailto:SRL%7C43322970%7C30515842450%7C1130982609%7Ctomibeviglia@gmail.com):
+//     0:RAZÓN SOCIAL | 1:DNI | 2:CUIT | 3:TELÉFONO | 4:EMAIL
+// DNI (1) y teléfono (3) se ignoran a propósito; se toma razón social, CUIT y email.
 function _expoParseMailto(text) {
   var body = text.replace(/^mailto:/i, "");
   try { body = decodeURIComponent(body); } catch (e) {}
@@ -6966,16 +6964,12 @@ function _expoParseMailto(text) {
   if (body.indexOf("|") >= 0) {
     var f = body.split("|");
     var out = { source: "qr_visitante" };
-    var LEGAL = /^(srl|sa|sas|s\.?a\.?|s\.?r\.?l\.?|sacif|sacifa|sacifia|sh|sc)$/i;
-    f.forEach(function (raw) {
-      var v = (raw || "").trim();
-      if (!v) return;
-      if (v.indexOf("@") > 0) { if (!out.email) out.email = v; return; }
-      if (/^\d{11}$/.test(v)) { if (!out.cuit) out.cuit = v; return; }   // CUIT
-      if (/^\d{10}$/.test(v)) { if (!out.whatsapp) out.whatsapp = v; return; } // tel
-      if (/^\d+$/.test(v)) return; // DNI u otros números: ignorar
-      if (!LEGAL.test(v) && v.length >= 3 && !out.company) out.company = v;
-    });
+    var razon = (f[0] || "").trim();
+    var cuit = (f[2] || "").replace(/\D/g, "");
+    var email = (f[4] || "").trim();
+    if (razon) out.company = razon;
+    if (cuit.length === 11) out.cuit = cuit;
+    if (email && email.indexOf("@") > 0) out.email = email;
     return out;
   }
   return { email: body || undefined, source: "qr_mailto" };
