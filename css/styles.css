@@ -1469,7 +1469,7 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
   }
   .category-title {
     margin: 40px 12px 18px;
-    scroll-margin-top: calc(86px + var(--nc-carousel-h, 0px) + 110px);
+    scroll-margin-top: calc(86px + var(--nc-carousel-h, 0px) + 16px);
   }
   /* Sidebar NO visible en mobile (usás botón filtros) */
   .categories-sidebar {
