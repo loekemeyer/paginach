@@ -10467,6 +10467,10 @@ body {
 @media (max-width: 900px) {
   #carrito .cart-2col {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "left"
+      "right"
+      "bottom";
     gap: 16px;
     padding: 0 12px;
   }
