@@ -375,40 +375,41 @@
 <div id="assortmentBanner" class="assortment-banner" style="display:none;">
       Mostrando tu surtido habitual (últimos 18 meses)
       </div>
-          <!-- ✅ Overlay filtros (Surtido + Ordenar por — sin categorías) -->
-          <div id="filtersOverlay" class="filters-overlay" aria-hidden="true">
-            <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Filtros">
-              <div class="filters-head">
-                <div class="filters-title">Filtros</div>
-                <button id="filtersCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
-              </div>
-
-              <div id="filtersGrid" class="filters-grid"></div>
-
-              <div class="filters-actions">
-                <button id="filtersApplyBtn" type="button" class="filters-apply">Aplicar filtros</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- ✅ Overlay categorías (separado del de filtros — bottom-sheet propio) -->
-          <div id="categoriasOverlay" class="filters-overlay" aria-hidden="true">
-            <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Categorías">
-              <div class="filters-head">
-                <div class="filters-title">Categorías</div>
-                <button id="categoriasCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
-              </div>
-
-              <div id="categoriasGrid" class="filters-grid"></div>
-
-              <div class="filters-actions">
-                <button id="categoriasApplyBtn" type="button" class="filters-apply">Aplicar</button>
-              </div>
-            </div>
-          </div>
-
           <div id="productsContainer"></div>
         </main>
+      </div>
+
+      <!-- ✅ Overlays FUERA de .products-layout para evitar stacking context z-index: 0 -->
+      <!-- Overlay filtros (Surtido + Ordenar por — sin categorías) -->
+      <div id="filtersOverlay" class="filters-overlay" aria-hidden="true">
+        <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Filtros">
+          <div class="filters-head">
+            <div class="filters-title">Filtros</div>
+            <button id="filtersCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
+          </div>
+
+          <div id="filtersGrid" class="filters-grid"></div>
+
+          <div class="filters-actions">
+            <button id="filtersApplyBtn" type="button" class="filters-apply">Aplicar filtros</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overlay categorías (separado del de filtros — bottom-sheet propio) -->
+      <div id="categoriasOverlay" class="filters-overlay" aria-hidden="true">
+        <div class="filters-panel" role="dialog" aria-modal="true" aria-label="Categorías">
+          <div class="filters-head">
+            <div class="filters-title">Categorías</div>
+            <button id="categoriasCancelBtn" class="filters-x" type="button" aria-label="Cerrar">✕</button>
+          </div>
+
+          <div id="categoriasGrid" class="filters-grid"></div>
+
+          <div class="filters-actions">
+            <button id="categoriasApplyBtn" type="button" class="filters-apply">Aplicar</button>
+          </div>
+        </div>
       </div>
     </section>
 
