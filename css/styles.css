@@ -3357,8 +3357,8 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
 }
 
 /* 7) Breakpoints intermedios — llenan gaps entre mobile (≤900) y 4K */
-@media (max-width: 480px) {
-  /* Mobile S/M: 1 col */
+@media (max-width: 360px) {
+  /* Mobile S (ultra chico): 1 col */
   .products-grid {
     grid-template-columns: 1fr !important;
   }
