@@ -1467,6 +1467,7 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
   }
   .category-title {
     margin: 40px 12px 18px;
+    scroll-margin-top: calc(86px + var(--nc-carousel-h, 0px) + 100px);
   }
   /* Sidebar NO visible en mobile (usás botón filtros) */
   .categories-sidebar {
@@ -5376,8 +5377,8 @@ body {
     padding: 12px 14px;
     background: #fff;
     position: sticky;
-    top: 0;
-    z-index: 60;
+    top: calc(86px + var(--nc-carousel-h, 0px));
+    z-index: 90;
     border-bottom: 1px solid #eee;
   }
 
@@ -5818,11 +5819,11 @@ body {
     grid-template-columns: 1fr auto;
     grid-template-rows: auto auto;
     gap: 8px 10px;
-    padding: 8px 12px;            /* ✅ más arriba */
+    padding: 8px 12px;
     background:#fff;
     position: sticky;
-    top: 0;
-    z-index: 60;
+    top: calc(86px + var(--nc-carousel-h, 0px));
+    z-index: 90;
     border-bottom: 1px solid #eee;
   }
 
@@ -5902,7 +5903,11 @@ body {
   background:#111;
   color:#fff;
   border:1px solid #111;
-    border-radius: 10px;
+  border-radius: 10px;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  box-sizing: border-box;
 }
 
 .add-login-btn:hover{
@@ -8389,14 +8394,7 @@ body {
     padding: 8px 10px 10px;
     max-width: none;
     width: auto;
-    position: relative;
-    top: auto;
-    z-index: 1;
-  }
-  .nc-show-btn {
-    position: relative;
-    top: auto;
-    z-index: 1;
+    /* sticky se hereda de la regla base (top:86px, z-index:100) */
   }
   .new-carousel-title h3 {
     font-size: 13px;
