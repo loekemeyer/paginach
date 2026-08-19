@@ -3357,13 +3357,30 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
 }
 
 /* 7) Breakpoints intermedios — llenan gaps entre mobile (≤900) y 4K */
-@media (max-width: 360px) {
-  /* Mobile ultra-small: 1 col full-width */
+@media (max-width: 480px) {
+  /* Mobile S/M: 1 col centrada */
   .products-grid {
     grid-template-columns: 1fr !important;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+  .product-card {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  .product-card .add-btn,
+  .product-card .add-login-btn {
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    word-break: break-word;
+    font-size: 12px;
+    padding: 10px 12px;
   }
   .product-card img {
-    max-width: 200px;
+    max-width: 180px;
+    width: 80%;
+    height: auto;
   }
 }
 
