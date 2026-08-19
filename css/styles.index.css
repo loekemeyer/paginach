@@ -163,8 +163,7 @@ img {
 
 
 .main-footer {
-  background-image: linear-gradient(#0b315d, #1e5491),
-    url("./img/fondo-footer.jpg");
+  background-image: linear-gradient(#0b315d, #1e5491);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

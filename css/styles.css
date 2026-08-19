@@ -38,8 +38,7 @@ body {
   height: 86px;
   padding: 12px 40px;
   border-bottom: 1px solid #2f2f2f;
-background-image: linear-gradient(var(--color-brand), #1e5491),
-    url("./img/fondo-footer.jpg");
+background-image: linear-gradient(var(--color-brand), #1e5491);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -5010,8 +5009,7 @@ body {
 ================================ */
 
 .main-footer {
-  background-image: linear-gradient(var(--color-brand), #1e5491),
-    url("./img/fondo-footer.jpg");
+  background-image: linear-gradient(var(--color-brand), #1e5491);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
