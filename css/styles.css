@@ -1464,10 +1464,12 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
   .products-layout {
     grid-template-columns: 1fr;
     padding: 0 12px;
+    position: relative;
+    z-index: 0;
   }
   .category-title {
     margin: 40px 12px 18px;
-    scroll-margin-top: 200px; /* header 86px + barra mobile ~90px + margen */
+    scroll-margin-top: calc(86px + var(--nc-carousel-h, 0px) + 110px);
   }
   /* Sidebar NO visible en mobile (usás botón filtros) */
   .categories-sidebar {
@@ -5377,8 +5379,8 @@ body {
     padding: 12px 14px;
     background: #fff;
     position: sticky;
-    top: 86px;
-    z-index: 90;
+    top: calc(86px + var(--nc-carousel-h, 0px));
+    z-index: 99;
     border-bottom: 1px solid #eee;
   }
 
@@ -5822,8 +5824,8 @@ body {
     padding: 8px 12px;
     background:#fff;
     position: sticky;
-    top: 86px;
-    z-index: 90;
+    top: calc(86px + var(--nc-carousel-h, 0px));
+    z-index: 99;
     border-bottom: 1px solid #eee;
   }
 
@@ -8390,18 +8392,11 @@ body {
 
 @media (max-width: 900px) {
   .new-carousel {
-    margin: 0 12px 14px;
+    margin: 0 12px 0;
     padding: 8px 10px 10px;
     max-width: none;
     width: auto;
-    position: relative;
-    top: auto;
-    z-index: 1;
-  }
-  .nc-show-btn {
-    position: relative;
-    top: auto;
-    z-index: 1;
+    /* sticky heredado de regla base: top:86px, z-index:100 */
   }
   .new-carousel-title h3 {
     font-size: 13px;
