@@ -11227,14 +11227,15 @@ body.is-scrolled .header {
 body.is-scrolled .logo-img {
   height: 44px;
 }
-/* En mobile el header ya es chico por sí mismo — desactivar shrink */
+/* En mobile el header ya es chico — mantener misma altura (86px) siempre,
+   sin shrink, para que la barra sticky debajo no deje gap. */
 @media (max-width: 900px) {
   body.is-scrolled .header {
-    height: auto;
-    padding: 12px 16px;
+    height: 86px;
+    padding: 12px 12px;
   }
   body.is-scrolled .logo-img {
-    height: auto;
+    height: 46px;
   }
 }
 
