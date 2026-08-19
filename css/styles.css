@@ -457,7 +457,7 @@ background-image: linear-gradient(var(--color-brand), #1e5491),
   margin: 24px 0 20px;
   border-bottom: 2px solid #ddd;
   padding-bottom: 10px;
-  scroll-margin-top: 110px;
+  scroll-margin-top: calc(110px + var(--nc-carousel-h, 0px));
 }
 /* Layout Productos con sidebar */
 .products-layout {
@@ -3356,12 +3356,16 @@ background-image: linear-gradient(var(--color-brand), #1e5491),
 
 /* 7) Breakpoints intermedios — llenan gaps entre mobile (≤900) y 4K */
 @media (max-width: 360px) {
-  /* Mobile ultra-small: 1 col full-width */
+  /* Mobile ultra-small: 2 cols compactas */
   .products-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .product-card {
+    padding: 8px !important;
   }
   .product-card img {
-    max-width: 200px;
+    max-width: 100%;
   }
 }
 
