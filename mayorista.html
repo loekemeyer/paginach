@@ -212,118 +212,98 @@
         <div></div>
       </div>
 
-      <!-- Botón para reabrir el carrusel cuando el usuario lo cerró -->
-      <button
-        type="button"
-        id="ncShowBtn"
-        class="nc-show-btn"
-        aria-label="Mostrar novedades"
-        hidden
-      >
-        <span aria-hidden="true">✨</span>
-        Mostrar novedades
-      </button>
+      <!-- ===== STICKY GROUP: novedades + barra móvil (un solo sticky) ===== -->
+      <div class="mobile-sticky-group" id="mobileStickyGroup">
+        <!-- Botón para reabrir el carrusel cuando el usuario lo cerró -->
+        <button
+          type="button"
+          id="ncShowBtn"
+          class="nc-show-btn"
+          aria-label="Mostrar novedades"
+          hidden
+        >
+          <span aria-hidden="true">✨</span>
+          Mostrar novedades
+        </button>
 
-      <!-- ✨ NOVEDADES — carrusel productos NUEVO (auto-scroll, pausa al hover, flechas manuales) -->
-      <section
-        id="newProductsCarousel"
-        class="new-carousel"
-        aria-label="Novedades"
-        hidden
-      >
-        <header class="new-carousel-head">
-          <div class="new-carousel-title">
-            <span class="new-carousel-spark" aria-hidden="true">✨</span>
-            <h3>Novedades</h3>
-            <span class="new-carousel-sub">Productos recién llegados</span>
+        <!-- ✨ NOVEDADES — carrusel -->
+        <section
+          id="newProductsCarousel"
+          class="new-carousel"
+          aria-label="Novedades"
+          hidden
+        >
+          <header class="new-carousel-head">
+            <div class="new-carousel-title">
+              <span class="new-carousel-spark" aria-hidden="true">✨</span>
+              <h3>Novedades</h3>
+              <span class="new-carousel-sub">Productos recién llegados</span>
+            </div>
+            <button type="button" id="ncCloseBtn" class="nc-close-btn" aria-label="Ocultar novedades">
+              Ocultar
+            </button>
+          </header>
+          <button type="button" class="ncn-btn ncn-prev" id="ncnPrev" aria-label="Anterior">‹</button>
+          <button type="button" class="ncn-btn ncn-next" id="ncnNext" aria-label="Siguiente">›</button>
+          <div class="new-carousel-viewport">
+            <div class="new-carousel-track" id="newCarouselTrack" role="list"></div>
           </div>
-          <button
-            type="button"
-            id="ncCloseBtn"
-            class="nc-close-btn"
-            aria-label="Ocultar novedades"
-          >
-            Ocultar
-          </button>
-        </header>
-        <button
-          type="button"
-          class="ncn-btn ncn-prev"
-          id="ncnPrev"
-          aria-label="Anterior"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          class="ncn-btn ncn-next"
-          id="ncnNext"
-          aria-label="Siguiente"
-        >
-          ›
-        </button>
-        <div class="new-carousel-viewport">
-          <div
-            class="new-carousel-track"
-            id="newCarouselTrack"
-            role="list"
-          ></div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Aviso descuento por volumen — debajo del carrusel Novedades / botón Mostrar -->
-      <div class="right-note right-note--belowcarousel" id="customerNote"></div>
+        <!-- Aviso descuento por volumen -->
+        <div class="right-note right-note--belowcarousel" id="customerNote"></div>
 
-      <!-- ================= MOBILE PRODUCTS BAR ================= -->
-      <!-- Fuera de products-layout para que su sticky no compita con el carrusel -->
-      <div class="mobile-products-bar" id="mobileProductsBar">
-        <div class="mpb-search">
-          <span class="mpb-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </span>
-          <input id="mobileSearch" class="mpb-input" type="search" placeholder="Buscar…" autocomplete="off" spellcheck="false"/>
-        </div>
-        <div class="mpb-actions">
-          <button id="openCategoriasBtn" class="mpb-btn" type="button">
-            <span class="mpb-btn-ico" aria-hidden="true">
+        <!-- Barra búsqueda / categoría / filtros -->
+        <div class="mobile-products-bar" id="mobileProductsBar">
+          <div class="mpb-search">
+            <span class="mpb-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
-                <rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
-                <rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
-                <rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </span>
-            Categoría
-          </button>
-          <button id="openFiltersBtn" class="mpb-btn" type="button">
-            <span class="mpb-btn-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </span>
-            Filtros
-          </button>
-          <div class="mpb-sort">
-            <span class="mpb-btn-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 7h12M8 12h9M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <path d="M4 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <path d="M2.5 16.5 4 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M2.5 7.5 4 6l1.5 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            <select id="mobileSortSelect" class="mpb-select">
-              <option value="category">Categoría</option>
-              <option value="bestsellers">Más vendidos</option>
-              <option value="price_desc">Mayor precio</option>
-              <option value="price_asc">Menor precio</option>
-            </select>
+            <input id="mobileSearch" class="mpb-input" type="search" placeholder="Buscar…" autocomplete="off" spellcheck="false"/>
+          </div>
+          <div class="mpb-actions">
+            <button id="openCategoriasBtn" class="mpb-btn" type="button">
+              <span class="mpb-btn-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+                  <rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+                  <rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+                  <rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </span>
+              Categoría
+            </button>
+            <button id="openFiltersBtn" class="mpb-btn" type="button">
+              <span class="mpb-btn-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
+              Filtros
+            </button>
+            <div class="mpb-sort">
+              <span class="mpb-btn-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 7h12M8 12h9M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M4 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M2.5 16.5 4 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M2.5 7.5 4 6l1.5 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <select id="mobileSortSelect" class="mpb-select">
+                <option value="category">Categoría</option>
+                <option value="bestsellers">Más vendidos</option>
+                <option value="price_desc">Mayor precio</option>
+                <option value="price_asc">Menor precio</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
+      <!-- ===== FIN STICKY GROUP ===== -->
 
       <div class="products-layout">
         <aside class="categories-sidebar" id="categoriesSidebar">
