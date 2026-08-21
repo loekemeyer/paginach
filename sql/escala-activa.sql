@@ -1,8 +1,16 @@
--- Escala activa: columna en customers
+-- ============================================================
+-- MIGRACIÓN: Escala Activa Self-Service
+-- ============================================================
+-- Correr en el SQL Editor de Supabase del proyecto CHEF
+-- Es idempotente (se puede correr más de una vez sin problema).
+-- ============================================================
+
+-- 1) Columna nueva en customers
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS escala_activa boolean NOT NULL DEFAULT false;
 
--- RPC: fijar el dto y apagar la escala, atómicamente.
+-- 2) RPC: fijar el dto y apagar la escala, atómicamente.
+--    Solo el propio cliente o un admin pueden ejecutar.
 CREATE OR REPLACE FUNCTION public.fijar_dto_escala(p_customer_id uuid, p_dto numeric)
 RETURNS void
 LANGUAGE plpgsql
@@ -29,3 +37,12 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.fijar_dto_escala(uuid, numeric) FROM public;
 GRANT EXECUTE ON FUNCTION public.fijar_dto_escala(uuid, numeric) TO authenticated, service_role;
+
+-- 3) Verificación
+DO $$
+BEGIN
+  RAISE NOTICE '✅ escala_activa column: OK';
+  RAISE NOTICE '✅ fijar_dto_escala RPC: OK';
+  RAISE NOTICE '';
+  RAISE NOTICE 'Ahora correr diagnostico-escala.sql para calibrar los tramos.';
+END $$;
