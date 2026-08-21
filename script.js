@@ -52,6 +52,7 @@ var _expoClientMode = false;      // cliente NUEVO de expo (escala + contado for
 var _expoActiveCustomer = false;  // hay un cliente REAL seleccionado (mostrar SU precio)
 var _expoClientComplete = false;  // el cliente NUEVO de expo tiene TODOS los datos (salvo expreso)
 var _expoScale = null; // [{desde, dto}] ordenado por desde asc
+var _escalaActiva = false; // escala activa self-service (dto en vivo, 1ª compra)
 
 // Completitud automática de un cliente nuevo de expo: TODOS los campos son
 // obligatorios salvo el Expreso de cada dirección de entrega. Opera sobre una
@@ -628,6 +629,7 @@ async function logout() {
     currentSession = null;
     isAdmin = false;
     customerProfile = null;
+    _escalaActiva = false; // reset escala activa
     deliveryChoice = { slot: "", label: "", direccionEntrega: "", zonaExpreso: "" };
     deliveryConfirmed = false;
     localStorage.removeItem("is_logged");
@@ -705,6 +707,7 @@ async function refreshAuthState(preloadedSession) {
   if (!currentSession) {
     isAdmin = false;
     customerProfile = null;
+    _escalaActiva = false;
     deliveryChoice = { slot: "", label: "", direccionEntrega: "", zonaExpreso: "" };
     deliveryConfirmed = false;
     const clienteNuevoRow = $("clienteNuevoRow");
@@ -735,7 +738,7 @@ async function refreshAuthState(preloadedSession) {
     supabaseClient
       .from("customers")
       .select(
-        "id,business_name,dto_vol,cod_cliente,cuit,direccion_fiscal,localidad,vend,mail,debt,payment_term,credit_limit",
+        "id,business_name,dto_vol,cod_cliente,cuit,direccion_fiscal,localidad,vend,mail,debt,payment_term,credit_limit,escala_activa",
       )
       .eq("auth_user_id", currentSession.user.id)
       .maybeSingle(),
@@ -786,6 +789,16 @@ async function refreshAuthState(preloadedSession) {
     else note.innerText = "";
   }
 
+  // Escala activa: cliente self-service con dto en vivo (1ª compra)
+  if (customerProfile && customerProfile.escala_activa && !isAdmin) {
+    _escalaActiva = true;
+    await _expoLoadScale();
+    setTimeout(function () {
+      _escalaForceContadoUI();
+      _expoSyncDto();
+    }, 0);
+  }
+
   // NOTA: loadDeliveryOptions se invoca al entrar al carrito (showSection "carrito")
   // y loadMyAssortmentIds se invoca al activar el filtro "Mi surtido".
   // No los cargamos aca para no bloquear el refresh/login.
@@ -812,7 +825,7 @@ function unitYourPrice(listPrice) {
  * MÉTODO DE PAGO
  ***********************/
 function getPaymentDiscount() {
-  if (_expoClientMode) return 0.25; // EXPO cliente nuevo: contado -25% forzado
+  if (_expoClientMode || _escalaActiva) return 0.25; // EXPO/escala: contado -25% forzado
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 0;
 
   const sel = $("paymentSelect");
@@ -823,7 +836,7 @@ function getPaymentDiscount() {
 }
 
 function getPaymentMethodText() {
-  if (_expoClientMode) return "Contado"; // EXPO cliente nuevo
+  if (_expoClientMode || _escalaActiva) return "Contado"; // EXPO/escala cliente
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return "Contado";
 
   const sel = $("paymentSelect");
@@ -834,7 +847,7 @@ function getPaymentMethodText() {
 }
 
 function getPaymentMethodCode() {
-  if (_expoClientMode) return 10; // EXPO cliente nuevo: Contado -25% (código CHEF)
+  if (_expoClientMode || _escalaActiva) return 10; // EXPO/escala: Contado -25% (código CHEF)
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 10;
 
   const sel = $("paymentSelect");
@@ -4336,6 +4349,7 @@ function updateCart() {
 
   _expoSyncDto();    // EXPO: recalcula dto por escala según el carrito actual
   _expoUpdateChip(); // EXPO: repinta el chip del cliente activo
+  if (_escalaActiva) _escalaForceContadoUI(); // Escala activa: forzar contado en cada render
 
   const submitBtn = document.getElementById("submitOrderBtn");
 
@@ -5254,6 +5268,12 @@ async function submitOrder() {
       }
     } catch (e) {}
     _expoShowConfirmPanel(); // EXPO: panel de cierre (descargar/copiar/WhatsApp) + PIN
+
+    // Escala activa: fijar el dto permanentemente y apagar el flag
+    if (_escalaActiva) {
+      _escalaFijar().catch(function (e) { console.error("escalaFijar:", e); });
+    }
+
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     // Enviar a Sheets con retry en background
@@ -6348,9 +6368,10 @@ function _expoScaleDtoFor(sub) {
 // Sincroniza el dto del cliente-expo con la escala según el carrito actual.
 // Lo escribe en customerProfile.dto_vol para que TODO el pricing lo lea igual.
 function _expoSyncDto() {
-  if (!_expoClientMode || !customerProfile) return;
+  if (!(_expoClientMode || _escalaActiva) || !customerProfile) return;
   customerProfile.dto_vol = _expoScaleDtoFor(_expoListSubtotal());
   _expoRenderCheckpoints();
+  if (_escalaActiva) _escalaRenderCheckpoints();
 }
 
 // Garantiza que el <select> oculto tenga la <option> del cliente elegido.
@@ -6447,6 +6468,157 @@ function _expoRenderCheckpoints() {
     "</div>";
   cp.style.display = "";
 }
+
+/***********************
+ * ESCALA ACTIVA — self-service (dto dinámico en 1ª compra)
+ ***********************/
+
+// Barra de progreso de descuento por volumen (escala activa self-service)
+function _escalaRenderCheckpoints() {
+  if (!_escalaActiva || !_expoScale || !_expoScale.length) return;
+
+  var tiers = _expoScale.slice().sort(function (a, b) {
+    return Number(a.desde) - Number(b.desde);
+  });
+  var sub = _expoListSubtotal();
+  var n = tiers.length;
+  var curIdx = 0;
+  for (var i = 0; i < n; i++) if (sub >= Number(tiers[i].desde)) curIdx = i;
+  var pos = function (i) { return n <= 1 ? 100 : (i / (n - 1)) * 100; };
+  var fillFrac;
+  if (curIdx >= n - 1) {
+    fillFrac = 100;
+  } else {
+    var a = Number(tiers[curIdx].desde), b = Number(tiers[curIdx + 1].desde);
+    var prog = b > a ? Math.min(1, Math.max(0, (sub - a) / (b - a))) : 0;
+    fillFrac = pos(curIdx) + prog * (pos(curIdx + 1) - pos(curIdx));
+  }
+  var steps = "";
+  tiers.forEach(function (t, i) {
+    var cls = i < curIdx ? "done" : i === curIdx ? "current" : "todo";
+    steps +=
+      '<div class="expo-cp-step ' + cls + '" style="left:' + pos(i) + '%">' +
+      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * 100) + "%</span>" +
+      '<span class="expo-cp-dot"></span>' +
+      '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
+      "</div>";
+  });
+  var next = _expoNextTier(sub);
+  var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
+  var right = next
+    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
+    : "<b>Descuento máximo alcanzado</b>";
+  var html =
+    '<div class="expo-cp-head">' +
+      '<span class="expo-cp-title">Tu descuento por volumen · <b>' + curDto + "%</b></span>" +
+      '<span class="expo-cp-sub">Pedido (lista): <b>$' + _expoMoney(sub) + "</b></span>" +
+      '<span class="expo-cp-next">' + right + "</span>" +
+    "</div>" +
+    '<div class="expo-cp-track">' +
+      '<div class="expo-cp-fill" style="width:' + fillFrac + '%"></div>' +
+      steps +
+    "</div>";
+
+  _escalaEnsureContainer("escalaCheckProd", "productos", ".section-title-row").innerHTML = html;
+  _escalaEnsureContainer("escalaCheckCart", "carrito", ".section-header").innerHTML = html;
+}
+
+function _escalaEnsureContainer(id, sectionId, afterSelector) {
+  var el = document.getElementById(id);
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = id;
+  el.className = "expo-cp-wrap escala-cp-wrap";
+  var sec = document.getElementById(sectionId);
+  if (!sec) return el;
+  var ref = afterSelector ? sec.querySelector(afterSelector) : null;
+  if (ref && ref.nextSibling) {
+    ref.parentNode.insertBefore(el, ref.nextSibling);
+  } else if (ref) {
+    ref.parentNode.appendChild(el);
+  } else {
+    sec.insertBefore(el, sec.firstChild);
+  }
+  return el;
+}
+
+function _escalaForceContadoUI() {
+  if (!_escalaActiva) return;
+  var payBtns = document.getElementById("paymentButtons");
+  var payLater = document.getElementById("payLaterBtn");
+  var paySel = document.getElementById("paymentSelect");
+  if (payBtns) payBtns.style.display = "none";
+  if (payLater) payLater.style.display = "none";
+  if (paySel) { paySel.value = "0.25"; paySel.style.display = "none"; }
+
+  var notice = document.getElementById("escalaContadoNotice");
+  if (!notice) {
+    var payRow = document.getElementById("paymentRow");
+    var card = payRow ? payRow.querySelector(".pay-card") : null;
+    if (card) {
+      notice = document.createElement("div");
+      notice.id = "escalaContadoNotice";
+      notice.className = "escala-contado-notice";
+      notice.innerHTML =
+        '<div class="escala-contado-icon">💰</div>' +
+        '<div class="escala-contado-text">' +
+          '<strong>Contado −25%</strong>' +
+          '<span>Medio de pago fijo para tu primer pedido</span>' +
+        '</div>';
+      var webNote = card.querySelector(".web-note");
+      if (webNote) card.insertBefore(notice, webNote);
+      else card.appendChild(notice);
+    }
+  }
+  var hint = document.querySelector("#paymentRow .ship-hint");
+  if (hint) hint.style.display = "none";
+}
+
+async function _escalaFijar() {
+  if (!_escalaActiva || !customerProfile) return;
+  try {
+    await supabaseClient.rpc("fijar_dto_escala", {
+      p_customer_id: customerProfile.id,
+      p_dto: customerProfile.dto_vol
+    });
+    _escalaActiva = false;
+    customerProfile.escala_activa = false;
+  } catch (e) {
+    console.error("fijar_dto_escala error:", e);
+  }
+}
+
+/***********************
+ * TRADUCCIÓN CHINO MANDARÍN
+ ***********************/
+function toggleChineseTranslate() {
+  var frame = document.querySelector(".goog-te-menu-frame");
+  if (frame) {
+    var combo = document.querySelector(".goog-te-combo");
+    if (combo) {
+      if (combo.value === "zh-CN") {
+        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=." + location.hostname;
+        location.reload();
+      } else {
+        combo.value = "zh-CN";
+        combo.dispatchEvent(new Event("change"));
+      }
+      return;
+    }
+  }
+  var tries = 0;
+  var iv = setInterval(function () {
+    var combo = document.querySelector(".goog-te-combo");
+    if (combo) {
+      clearInterval(iv);
+      combo.value = "zh-CN";
+      combo.dispatchEvent(new Event("change"));
+    }
+    if (++tries > 40) clearInterval(iv);
+  }, 100);
+}
+window.toggleChineseTranslate = toggleChineseTranslate;
 
 function _expoUpdateChip() {
   var chip = document.getElementById("expoCurrentChip");

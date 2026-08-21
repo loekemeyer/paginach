@@ -23,6 +23,19 @@
   </head>
 
   <body class="avc-customer-mode">
+    <!-- Google Translate -->
+    <div id="google_translate_element" style="display:none"></div>
+    <script>
+    function googleTranslateElementInit(){
+      new google.translate.TranslateElement({
+        pageLanguage:'es',
+        includedLanguages:'zh-CN',
+        autoDisplay:false
+      },'google_translate_element');
+    }
+    </script>
+    <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
     <header class="header">
       <div class="logo">
   <a href="index.html">
@@ -74,6 +87,12 @@
             <span class="micon-cart-text">Pedido</span> (<span id="mobileCartCount">0</span>)
           </button>
 
+          <button class="micon-btn btn-translate-cn" type="button"
+            aria-label="翻译成中文"
+            onclick="toggleChineseTranslate()"
+            style="font-size:14px; border:none; padding:2px 6px;"
+          >🇨🇳</button>
+
           <button id="mobileProfileBtn" class="micon-btn micon-profile" type="button" aria-label="Perfil">
             <img src="img/profile.jpg" alt="Perfil" class="profile-avatar">
           </button>
@@ -90,6 +109,11 @@
           >
             Quiero ser cliente
           </a>
+
+          <button type="button" class="btn-translate-cn"
+            onclick="toggleChineseTranslate()"
+            title="翻译成中文 — Traducir a Chino"
+          >🇨🇳 中文</button>
 
           <a id="loginBtn" onclick="openLogin()">Iniciar sesión</a>
 

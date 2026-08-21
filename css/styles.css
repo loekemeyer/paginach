@@ -12235,3 +12235,45 @@ body.is-scrolled .logo-img {
   margin-top: 14px; background: #fff; color: #111; border: none;
   border-radius: 9px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer;
 }
+
+/* =============================================
+   ESCALA ACTIVA — aviso contado forzado
+   ============================================= */
+.escala-contado-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: #92400e;
+}
+.escala-contado-icon { font-size: 20px; flex-shrink: 0; }
+.escala-contado-text { display: flex; flex-direction: column; gap: 2px; }
+.escala-contado-text strong { font-weight: 700; }
+.escala-cp-wrap { margin-top: 12px; }
+
+/* =============================================
+   BOTÓN TRADUCCIÓN CHINO MANDARÍN
+   ============================================= */
+.btn-translate-cn {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.btn-translate-cn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+/* Ocultar la barra superior de Google Translate */
+.skiptranslate { display: none !important; }
+body { top: 0 !important; }
