@@ -7,12 +7,11 @@
 // POR QUÉ EXISTE: Supabase endureció la validación de email en signUp y ahora
 // rechaza el dominio sintético <cuit>@cuit.loekemeyer ("Email address is
 // invalid"). auth.admin.createUser NO valida el formato, así que el alta vuelve
-// a funcionar. El login (grant_type=password) nunca validó el dominio, así que
-// los usuarios creados por acá entran normal.
+// a funcionar. El login (grant_type=password) nunca validó el dominio.
 //
-// SEGURIDAD: sólo un ADMIN puede llamarla. Se verifica el JWT del que llama
-// (getUser) y su presencia en public.admins. El service_role NUNCA sale de la
-// función (vive en los secrets, inyectado por Supabase).
+// AUTORIZACIÓN: el que llama tiene que ser ADMIN o VENDEDOR. Vendedor = su
+// auth_user_id tiene clientes vinculados en user_customer_links. El service_role
+// NUNCA sale de la función (vive en los secrets, inyectado por Supabase).
 //
 // Entrada:  { cuit: "<dígitos o con guiones>", pin: "123456" }
 // Salida:   { id: "<uuid>", created: true|false }  |  { error: "..." }
@@ -25,7 +24,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-// Dominio del email sintético (Chef lo heredó del port de LK).
+// Dominio del email sintético. En Tierra Nativa (Elias) sería "cuit.tierranativa".
 const EMAIL_DOMAIN = "cuit.loekemeyer";
 
 const CORS_HEADERS: Record<string, string> = {
@@ -80,12 +79,21 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // Autorizado: admin O vendedor (tiene clientes vinculados en user_customer_links).
   const { data: adminRow } = await admin
     .from("admins")
     .select("auth_user_id")
     .eq("auth_user_id", who.user.id)
     .maybeSingle();
-  if (!adminRow) return json({ error: "not_admin" }, 403);
+  let allowed = !!adminRow;
+  if (!allowed) {
+    const { count } = await admin
+      .from("user_customer_links")
+      .select("auth_user_id", { count: "exact", head: true })
+      .eq("auth_user_id", who.user.id);
+    allowed = (count ?? 0) > 0;
+  }
+  if (!allowed) return json({ error: "no_autorizado" }, 403);
 
   const body = await req.json().catch(() => ({}));
   const digits = String(body?.cuit ?? "").replace(/[^0-9]/g, "");

@@ -52,6 +52,7 @@ var _expoClientMode = false;      // cliente NUEVO de expo (escala + contado for
 var _expoActiveCustomer = false;  // hay un cliente REAL seleccionado (mostrar SU precio)
 var _expoClientComplete = false;  // el cliente NUEVO de expo tiene TODOS los datos (salvo expreso)
 var _escalaActiva = false;        // cliente self-service con escala dinámica (1ª compra)
+var _escalaFactor = 1;            // 1 con vendedor (tope 12%); ~1.58 sin vendedor (tope 19%)
 var _expoScale = null; // [{desde, dto}] ordenado por desde asc
 
 // Completitud automática de un cliente nuevo de expo: TODOS los campos son
@@ -6461,7 +6462,21 @@ function _expoScaleDtoFor(sub) {
 // Lo escribe en customerProfile.dto_vol para que TODO el pricing lo lea igual.
 function _expoSyncDto() {
   if (!(_expoClientMode || _escalaActiva) || !customerProfile) return;
-  customerProfile.dto_vol = _expoScaleDtoFor(_expoListSubtotal());
+  var base = _expoScaleDtoFor(_expoListSubtotal());
+  // Tope según vendedor: CON vend el tope es 12% (la escala base); SIN vend el
+  // cliente se lleva la comisión y el tope es 19%. Se escala la curva base al
+  // tope que corresponde (mismo factor para el dto y para la barra de tramos).
+  var maxBase = 0;
+  if (_expoScale && _expoScale.length) {
+    _expoScale.forEach(function (t) {
+      var d = Number(t.dto) || 0;
+      if (d > maxBase) maxBase = d;
+    });
+  }
+  var noVend = !(customerProfile.vend && String(customerProfile.vend).trim());
+  var tope = noVend ? 0.19 : 0.12;
+  _escalaFactor = maxBase > 0 ? tope / maxBase : 1;
+  customerProfile.dto_vol = Math.min(base * _escalaFactor, tope);
   _expoRenderCheckpoints();
   // Escala activa self-service: barra de checkpoints + reasegurar contado forzado.
   if (_escalaActiva) {
@@ -6498,7 +6513,7 @@ function _escalaRenderCheckpoints() {
     var cls = i < curIdx ? "done" : i === curIdx ? "current" : "todo";
     steps +=
       '<div class="expo-cp-step ' + cls + '" style="left:' + pos(i) + '%">' +
-      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * 100) + "%</span>" +
+      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * _escalaFactor * 100) + "%</span>" +
       '<span class="expo-cp-dot"></span>' +
       '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
       "</div>";
@@ -6511,9 +6526,9 @@ function _escalaRenderCheckpoints() {
       break;
     }
   }
-  var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
+  var curDto = Math.round(Number(tiers[curIdx].dto) * _escalaFactor * 100);
   var right = next
-    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
+    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * _escalaFactor * 100) + "%"
     : "<b>Descuento máximo alcanzado</b>";
   var html =
     '<div class="expo-cp-head">' +
@@ -6673,7 +6688,7 @@ function _expoRenderCheckpoints() {
     var cls = i < curIdx ? "done" : i === curIdx ? "current" : "todo";
     steps +=
       '<div class="expo-cp-step ' + cls + '" style="left:' + pos(i) + '%">' +
-      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * 100) + "%</span>" +
+      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * _escalaFactor * 100) + "%</span>" +
       '<span class="expo-cp-dot"></span>' +
       '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
       "</div>";
@@ -6686,9 +6701,9 @@ function _expoRenderCheckpoints() {
       break;
     }
   }
-  var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
+  var curDto = Math.round(Number(tiers[curIdx].dto) * _escalaFactor * 100);
   var right = next
-    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
+    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * _escalaFactor * 100) + "%"
     : "<b>Descuento máximo alcanzado</b>";
   cp.innerHTML =
     '<div class="expo-cp-head">' +
@@ -8553,6 +8568,18 @@ function renderCustomerSelector() {
 
   banner.appendChild(labelWrap);
   banner.appendChild(dropdown);
+
+  // "+ Nuevo cliente" SOLO para vendedores: alta self-service (reusa el modal de
+  // expo). El cliente creado queda con escala_activa y, si el vendedor eligió su
+  // código, con vend -> la escala le topea en 12% (con vend) o 19% (sin vend).
+  if (typeof isActualVendor === "function" && isActualVendor()) {
+    var vNewBtn = document.createElement("button");
+    vNewBtn.type = "button";
+    vNewBtn.className = "expo-btn expo-btn-new cs-new-client-btn";
+    vNewBtn.textContent = "+ Nuevo cliente";
+    vNewBtn.addEventListener("click", expoNuevoCliente);
+    banner.appendChild(vNewBtn);
+  }
 
   var section = document.getElementById("productos");
   if (section) {
