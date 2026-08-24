@@ -1003,8 +1003,11 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
   bottom: 0;
   background: #fff;
   padding-top: 10px;
+  display: flex;
+  gap: 10px;
 }
 .filters-apply {
+  flex: 1;
   width: 100%;
   height: 44px;
   border-radius: 14px;
@@ -1014,6 +1017,60 @@ background-image: linear-gradient(var(--color-brand), #1e5491);
   font-weight: 800;
   cursor: pointer;
 }
+/* Botón "Limpiar filtros": secundario, al lado de "Aplicar". */
+.filters-clear {
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1.5px solid #d0d0d0;
+  background: #fff;
+  color: #333;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* Botón de traducción a chino mandarín (pill translúcido sobre header oscuro). */
+.btn-translate-cn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #fff;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-translate-cn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+/* Ocultar la barra superior que inyecta Google Translate. */
+.skiptranslate { display: none !important; }
+body { top: 0 !important; }
+
+/* Escala activa — aviso de contado forzado + separación de la barra de tramos. */
+.escala-contado-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: #92400e;
+}
+.escala-contado-icon { font-size: 20px; flex-shrink: 0; }
+.escala-contado-text { display: flex; flex-direction: column; }
+.escala-contado-text strong { font-weight: 700; }
+.escala-cp-wrap { margin-top: 12px; }
 /* Subtítulos de subcategoría (ÚNICA regla) */
 .grid-subtitle {
   grid-column: 1 / -1;
@@ -9506,6 +9563,31 @@ body {
   gap: 16px;
   min-width: 0;
 }
+
+/* P8: checkout compacto en DESKTOP (vista de 2 columnas) — reduce gap, padding
+   de las cards de entrega/pago y alto de los botones de pago para que toda la
+   columna izquierda entre en una pantalla. Mobile queda igual. */
+@media (min-width: 992px) {
+  #carrito .cart-2col .cart-col-left {
+    gap: 10px;
+  }
+  #carrito .cart-2col .cart-col-left .ship-card {
+    padding: 12px 14px;
+  }
+  #carrito .cart-2col .cart-col-left .pay-card {
+    padding: 12px 14px;
+  }
+  #carrito .cart-2col .cart-col-left .pay-btn {
+    padding: 8px 10px;
+  }
+  #carrito .cart-2col .cart-col-left .pay-title {
+    margin-bottom: 6px;
+  }
+  #carrito .cart-2col .cart-col-left .cart-total {
+    margin-top: 4px;
+  }
+}
+
 #carrito .cart-col-right {
   display: flex;
   flex-direction: column;

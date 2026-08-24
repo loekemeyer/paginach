@@ -51,6 +51,7 @@ const EXPO_MODE = true;
 var _expoClientMode = false;      // cliente NUEVO de expo (escala + contado forzado)
 var _expoActiveCustomer = false;  // hay un cliente REAL seleccionado (mostrar SU precio)
 var _expoClientComplete = false;  // el cliente NUEVO de expo tiene TODOS los datos (salvo expreso)
+var _escalaActiva = false;        // cliente self-service con escala dinámica (1ª compra)
 var _expoScale = null; // [{desde, dto}] ordenado por desde asc
 
 // Completitud automática de un cliente nuevo de expo: TODOS los campos son
@@ -735,7 +736,7 @@ async function refreshAuthState(preloadedSession) {
     supabaseClient
       .from("customers")
       .select(
-        "id,business_name,dto_vol,cod_cliente,cuit,direccion_fiscal,localidad,vend,mail,debt,payment_term,credit_limit",
+        "id,business_name,dto_vol,cod_cliente,cuit,direccion_fiscal,localidad,vend,mail,debt,payment_term,credit_limit,escala_activa",
       )
       .eq("auth_user_id", currentSession.user.id)
       .maybeSingle(),
@@ -762,6 +763,20 @@ async function refreshAuthState(preloadedSession) {
   customerProfile = custRes.data || null;
   // Snapshot del perfil propio del vendedor para poder volver desde "Pedir para"
   _vendorOwnProfile = customerProfile ? Object.assign({}, customerProfile) : null;
+
+  // Escala activa: cliente self-service que calcula su dto en vivo con su 1er
+  // pedido. Carga la escala UNA VEZ y prende el modo. No aplica a admins.
+  if (customerProfile && customerProfile.escala_activa && !isAdmin) {
+    _escalaActiva = true;
+    await _expoLoadScale();
+    // Forzar contado en la UI y sincronizar dto tras un breve defer (los
+    // elementos de pago pueden no existir todavía si el carrito no se renderizó
+    // — _escalaForceContadoUI se reintenta en updateCart/_expoSyncDto).
+    setTimeout(function () {
+      _escalaForceContadoUI();
+      _expoSyncDto();
+    }, 0);
+  }
 
   if ($("loginBtn")) $("loginBtn").style.display = "none";
   if ($("userBox")) $("userBox").style.display = "inline-flex";
@@ -812,7 +827,7 @@ function unitYourPrice(listPrice) {
  * MÉTODO DE PAGO
  ***********************/
 function getPaymentDiscount() {
-  if (_expoClientMode) return 0.25; // EXPO cliente nuevo: contado -25% forzado
+  if (_expoClientMode || _escalaActiva) return 0.25; // EXPO nuevo o escala activa: contado -25% forzado
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 0;
 
   const sel = $("paymentSelect");
@@ -823,7 +838,7 @@ function getPaymentDiscount() {
 }
 
 function getPaymentMethodText() {
-  if (_expoClientMode) return "Contado"; // EXPO cliente nuevo
+  if (_expoClientMode || _escalaActiva) return "Contado"; // EXPO nuevo o escala activa
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return "Contado";
 
   const sel = $("paymentSelect");
@@ -834,7 +849,7 @@ function getPaymentMethodText() {
 }
 
 function getPaymentMethodCode() {
-  if (_expoClientMode) return 10; // EXPO cliente nuevo: Contado -25% (código CHEF)
+  if (_expoClientMode || _escalaActiva) return 10; // EXPO nuevo o escala activa: Contado -25% (código CHEF)
   if (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) return 10;
 
   const sel = $("paymentSelect");
@@ -3616,6 +3631,67 @@ function cancelPendingFilters() {
   closeFiltersOverlay();
 }
 
+// Resetea TODOS los filtros del catálogo al default (surtido, nuevos,
+// categorías, orden y búsqueda) y re-renderiza.
+function limpiarFiltros() {
+  filterMyAssortment = false;
+  filterNewOnly = false;
+  pendingFilterNewOnly = false;
+  filterAll = true;
+  pendingFilterAll = true;
+  filterCats = new Set();
+  pendingFilterCats = new Set();
+  sortMode = "category";
+  searchTerm = "";
+  var ns = $("navSearch");
+  if (ns) ns.value = "";
+  var ms = $("mobileSearch");
+  if (ms) ms.value = "";
+  if (typeof syncMyAssortmentBtn === "function") syncMyAssortmentBtn();
+  if (typeof applySortUI === "function") applySortUI();
+  if (typeof renderFiltersOverlayUI === "function") renderFiltersOverlayUI();
+  if (typeof renderCategoriasOverlayUI === "function") renderCategoriasOverlayUI();
+  renderProducts();
+  closeFiltersOverlay();
+}
+window.limpiarFiltros = limpiarFiltros;
+
+// =====================================================================
+// TRADUCCIÓN A CHINO MANDARÍN — Google Translate widget
+// =====================================================================
+function toggleChineseTranslate() {
+  // El widget de Google inyecta un iframe y un <select> dentro de
+  // #google_translate_element. Lo disparamos programáticamente.
+  var frame = document.querySelector(".goog-te-menu-frame");
+  if (frame) {
+    var combo = document.querySelector(".goog-te-combo");
+    if (combo) {
+      if (combo.value === "zh-CN") {
+        // Volver a español: resetear la cookie y recargar.
+        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=." + location.hostname;
+        location.reload();
+      } else {
+        combo.value = "zh-CN";
+        combo.dispatchEvent(new Event("change"));
+      }
+      return;
+    }
+  }
+  // Primera vez: esperar a que el widget cargue y seleccionar chino.
+  var tries = 0;
+  var iv = setInterval(function () {
+    var combo = document.querySelector(".goog-te-combo");
+    if (combo) {
+      clearInterval(iv);
+      combo.value = "zh-CN";
+      combo.dispatchEvent(new Event("change"));
+    }
+    if (++tries > 40) clearInterval(iv); // timeout 4s
+  }, 100);
+}
+window.toggleChineseTranslate = toggleChineseTranslate;
+
 // Panel FILTROS (mobile): SOLO Surtido + Ordenar por.
 // Las categorías viven en su propio overlay separado (renderCategoriasOverlayUI).
 function renderFiltersOverlayUI() {
@@ -5212,6 +5288,16 @@ async function submitOrder() {
       }),
     };
 
+    // Escala activa: fijar el dto GANADO en la base ANTES de vaciar el carrito.
+    // Si se leyera después, el reset llama updateCart -> _expoSyncDto recalcula
+    // sobre carrito vacío (subtotal 0 => 0%) y se fijaría 0% permanente. Por eso
+    // se pasa el snapshot explícito del dto vigente con el carrito todavía lleno.
+    if (_escalaActiva && customerProfile) {
+      _escalaFijar(Number(customerProfile.dto_vol || 0)).catch(function (e) {
+        console.error("escalaFijar:", e);
+      });
+    }
+
     // ---- Confirmación INMEDIATA al cliente ----
     cart.length = 0;
     saveCartToLS();
@@ -6348,9 +6434,142 @@ function _expoScaleDtoFor(sub) {
 // Sincroniza el dto del cliente-expo con la escala según el carrito actual.
 // Lo escribe en customerProfile.dto_vol para que TODO el pricing lo lea igual.
 function _expoSyncDto() {
-  if (!_expoClientMode || !customerProfile) return;
+  if (!(_expoClientMode || _escalaActiva) || !customerProfile) return;
   customerProfile.dto_vol = _expoScaleDtoFor(_expoListSubtotal());
   _expoRenderCheckpoints();
+  // Escala activa self-service: barra de checkpoints + reasegurar contado forzado.
+  if (_escalaActiva) {
+    _escalaRenderCheckpoints();
+    _escalaForceContadoUI();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ESCALA ACTIVA — self-service: el cliente calcula su dto con el 1er pedido
+// ═══════════════════════════════════════════════════════════════
+
+// Barra de checkpoints (tramos de la escala) para el cliente self-service,
+// tanto en Productos como en el Carrito. Reusa la infra del módulo expo.
+function _escalaRenderCheckpoints() {
+  if (!_escalaActiva || !_expoScale || !_expoScale.length) return;
+
+  var tiers = _expoScale.slice().sort(function (a, b) {
+    return Number(a.desde) - Number(b.desde);
+  });
+  var sub = _expoListSubtotal();
+  var n = tiers.length;
+  var curIdx = 0;
+  for (var i = 0; i < n; i++) if (sub >= Number(tiers[i].desde)) curIdx = i;
+  var pos = function (i) { return n <= 1 ? 100 : (i / (n - 1)) * 100; };
+  var fillFrac;
+  if (curIdx >= n - 1) {
+    fillFrac = 100;
+  } else {
+    var a = Number(tiers[curIdx].desde), b = Number(tiers[curIdx + 1].desde);
+    var prog = b > a ? Math.min(1, Math.max(0, (sub - a) / (b - a))) : 0;
+    fillFrac = pos(curIdx) + prog * (pos(curIdx + 1) - pos(curIdx));
+  }
+  var steps = "";
+  tiers.forEach(function (t, i) {
+    var cls = i < curIdx ? "done" : i === curIdx ? "current" : "todo";
+    steps +=
+      '<div class="expo-cp-step ' + cls + '" style="left:' + pos(i) + '%">' +
+      '<span class="expo-cp-pct">' + Math.round(Number(t.dto) * 100) + "%</span>" +
+      '<span class="expo-cp-dot"></span>' +
+      '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
+      "</div>";
+  });
+  var next = _expoNextTier(sub);
+  var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
+  var right = next
+    ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
+    : "<b>Descuento máximo alcanzado</b>";
+  var html =
+    '<div class="expo-cp-head">' +
+      '<span class="expo-cp-title">Tu descuento por volumen · <b>' + curDto + "%</b></span>" +
+      '<span class="expo-cp-sub">Pedido (lista): <b>$' + _expoMoney(sub) + "</b></span>" +
+      '<span class="expo-cp-next">' + right + "</span>" +
+    "</div>" +
+    '<div class="expo-cp-track">' +
+      '<div class="expo-cp-fill" style="width:' + fillFrac + '%"></div>' +
+      steps +
+    "</div>";
+
+  _escalaEnsureContainer("escalaCheckProd", "productos", ".section-title-row").innerHTML = html;
+  _escalaEnsureContainer("escalaCheckCart", "carrito", ".cart-col-right").innerHTML = html;
+}
+
+// Crea o devuelve el contenedor de checkpoints dentro de una sección.
+function _escalaEnsureContainer(id, sectionId, afterSelector) {
+  var el = document.getElementById(id);
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = id;
+  el.className = "expo-cp-wrap escala-cp-wrap";
+  var sec = document.getElementById(sectionId);
+  if (!sec) return el;
+  var ref = afterSelector ? sec.querySelector(afterSelector) : null;
+  if (ref && ref.nextSibling) {
+    ref.parentNode.insertBefore(el, ref.nextSibling);
+  } else if (ref) {
+    ref.parentNode.appendChild(el);
+  } else {
+    sec.insertBefore(el, sec.firstChild);
+  }
+  return el;
+}
+
+// Oculta los botones de pago y muestra "Contado -25%" forzado.
+function _escalaForceContadoUI() {
+  if (!_escalaActiva) return;
+  var payBtns = document.getElementById("paymentButtons");
+  var payLater = document.getElementById("payLaterBtn");
+  var paySel = document.getElementById("paymentSelect");
+  if (payBtns) payBtns.style.display = "none";
+  if (payLater) payLater.style.display = "none";
+  if (paySel) { paySel.value = "0.25"; paySel.style.display = "none"; }
+
+  var notice = document.getElementById("escalaContadoNotice");
+  if (!notice) {
+    var payRow = document.getElementById("paymentRow");
+    var card = payRow ? payRow.querySelector(".pay-card") : null;
+    if (card) {
+      notice = document.createElement("div");
+      notice.id = "escalaContadoNotice";
+      notice.className = "escala-contado-notice";
+      notice.innerHTML =
+        '<div class="escala-contado-icon">💰</div>' +
+        '<div class="escala-contado-text">' +
+          '<strong>Contado −25%</strong>' +
+          '<span>Medio de pago fijo para tu primer pedido</span>' +
+        '</div>';
+      var webNote = card.querySelector(".web-note");
+      if (webNote) card.insertBefore(notice, webNote);
+      else card.appendChild(notice);
+    }
+  }
+  var hint = document.querySelector("#paymentRow .ship-hint");
+  if (hint) hint.style.display = "none";
+}
+
+// Fijar dto_vol en la base tras confirmar el primer pedido. Recibe el dto por
+// SNAPSHOT (capturado con el carrito lleno): en Chef el reset del post-submit
+// vacía el carrito y recalcula el dto a 0% antes de que corra esto.
+async function _escalaFijar(dtoSnapshot) {
+  if (!_escalaActiva || !customerProfile) return;
+  var dto = Number(dtoSnapshot);
+  if (!isFinite(dto)) dto = Number(customerProfile.dto_vol || 0);
+  try {
+    await supabaseClient.rpc("fijar_dto_escala", {
+      p_customer_id: customerProfile.id,
+      p_dto: dto,
+    });
+    _escalaActiva = false;
+    customerProfile.escala_activa = false;
+    customerProfile.dto_vol = dto;
+  } catch (e) {
+    console.error("fijar_dto_escala error:", e);
+  }
 }
 
 // Garantiza que el <select> oculto tenga la <option> del cliente elegido.
@@ -9175,6 +9394,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     cancelPendingFilters(),
   );
   $("filtersApplyBtn")?.addEventListener("click", () => applyPendingFilters());
+  $("filtersClearBtn")?.addEventListener("click", () => limpiarFiltros());
 
   $("filtersOverlay")?.addEventListener("click", (e) => {
     if (e.target.id === "filtersOverlay") closeFiltersOverlay();

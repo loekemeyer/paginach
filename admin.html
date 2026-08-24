@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="img/favicon-opt.png" />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/analisis-venta-cliente.css" />
-    <link rel="stylesheet" href="css/admin.css?v=2016" />
+    <link rel="stylesheet" href="css/admin.css?v=2017" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -526,6 +526,21 @@
                         min="0"
                         max="100"
                       />
+                      <label
+                        style="
+                          display: flex;
+                          align-items: center;
+                          gap: 6px;
+                          margin-top: 6px;
+                          font-size: 12px;
+                          color: #4b5563;
+                          cursor: pointer;
+                          user-select: none;
+                        "
+                      >
+                        <input type="checkbox" id="manualEscalaActiva" />
+                        <span>Escala activa (dto por 1ª compra)</span>
+                      </label>
                     </td>
                     <td>
                       <input
@@ -2336,6 +2351,21 @@
                 min="0"
                 max="100"
               />
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  margin-top: 6px;
+                  font-size: 12px;
+                  color: #4b5563;
+                  cursor: pointer;
+                  user-select: none;
+                "
+              >
+                <input type="checkbox" id="editEscalaActiva" />
+                <span>Escala activa (dto por 1ª compra)</span>
+              </label>
             </div>
             <div class="form-field">
               <label class="field-label">Usuario (login)</label
@@ -2420,12 +2450,12 @@
       </div>
     </div>
 
-    <script src="./version.js?v=2016"></script>
-    <script src="excel-parser-smart.js?v=2016"></script>
-    <script src="argentina-map-data.js?v=2016"></script>
-    <script src="admin.js?v=2016"></script>
-    <script src="admin-supercot.js?v=2016"></script>
-    <script src="admin-excel-krikos.js?v=2016"></script>
-    <script src="analisis-venta-cliente.js?v=2016"></script>
+    <script src="./version.js?v=2017"></script>
+    <script src="excel-parser-smart.js?v=2017"></script>
+    <script src="argentina-map-data.js?v=2017"></script>
+    <script src="admin.js?v=2017"></script>
+    <script src="admin-supercot.js?v=2017"></script>
+    <script src="admin-excel-krikos.js?v=2017"></script>
+    <script src="analisis-venta-cliente.js?v=2017"></script>
   </body>
 </html>

@@ -17,12 +17,24 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <link rel="stylesheet" href="css/tokens.css">
-    <link rel="stylesheet" href="css/styles.css?v=2016">
+    <link rel="stylesheet" href="css/styles.css?v=2017">
     <link rel="stylesheet" href="css/analisis-venta-cliente.css">
     <link rel="icon" type="image/png" href="img/favicon.png">
   </head>
 
   <body class="avc-customer-mode">
+    <!-- Google Translate (traducción a chino mandarín, oculto) -->
+    <div id="google_translate_element" style="display:none"></div>
+    <script>
+    function googleTranslateElementInit(){
+      new google.translate.TranslateElement({
+        pageLanguage:'es',
+        includedLanguages:'zh-CN',
+        autoDisplay:false
+      },'google_translate_element');
+    }
+    </script>
+    <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <header class="header">
       <div class="logo">
   <a href="index.html">
@@ -69,6 +81,15 @@
 
         <!-- ✅ MOBILE ICONS: Carrito + Perfil -->
         <div id="mobileIcons" class="mobile-icons" aria-label="Accesos rápidos">
+          <button
+            class="micon-btn btn-translate-cn notranslate"
+            translate="no"
+            type="button"
+            aria-label="翻译成中文 — Traducir a chino"
+            onclick="toggleChineseTranslate()"
+            style="font-size:16px; border:none; padding:2px 6px;"
+          >🌐</button>
+
           <button id="mobileCartBtn" class="micon-btn micon-cart" type="button" aria-label="Pedido">
             <img class="micon-cart-img" src="img/cart-icon.png" alt="">
             <span class="micon-cart-text">Pedido</span> (<span id="mobileCartCount">0</span>)
@@ -90,6 +111,14 @@
           >
             Quiero ser cliente
           </a>
+
+          <button
+            type="button"
+            class="btn-translate-cn notranslate"
+            translate="no"
+            onclick="toggleChineseTranslate()"
+            title="翻译成中文 — Traducir a chino"
+          >🌐 中文</button>
 
           <a id="loginBtn" onclick="openLogin()">Iniciar sesión</a>
 
@@ -391,6 +420,7 @@
           <div id="filtersGrid" class="filters-grid"></div>
 
           <div class="filters-actions">
+            <button id="filtersClearBtn" type="button" class="filters-clear">Limpiar filtros</button>
             <button id="filtersApplyBtn" type="button" class="filters-apply">Aplicar filtros</button>
           </div>
         </div>
@@ -1582,7 +1612,7 @@
 
     <!-- Tu JS -->
     <script defer src="config.js"></script>
-    <script defer src="script.js?v=2016"></script>
+    <script defer src="script.js?v=2017"></script>
     <!-- Análisis de compras embebido en el perfil del cliente (lazy load) -->
     <script defer src="analisis-venta-cliente.js"></script>
 
