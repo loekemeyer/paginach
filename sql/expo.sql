@@ -77,7 +77,10 @@ create or replace function public.expo_reservar_cod()
 returns bigint language plpgsql security definer set search_path = public as $$
 declare v bigint;
 begin
-  if not exists (select 1 from admins a where a.auth_user_id = auth.uid()) then
+  -- Autorizado: admin O vendedor (tiene clientes vinculados). Así el vendedor
+  -- puede reservar código al dar de alta un cliente desde el catálogo.
+  if not exists (select 1 from admins a where a.auth_user_id = auth.uid())
+     and not exists (select 1 from user_customer_links l where l.auth_user_id = auth.uid()) then
     raise exception 'no autorizado';
   end if;
   update public.expo_config set next_cod = next_cod + 1 where id = 1
