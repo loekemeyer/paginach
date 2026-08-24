@@ -3660,36 +3660,43 @@ window.limpiarFiltros = limpiarFiltros;
 // =====================================================================
 // TRADUCCIÓN A CHINO MANDARÍN — Google Translate widget
 // =====================================================================
+// Borra la cookie googtrans en TODAS las variantes de dominio y path. Google
+// la setea host-only o con "." adelante, y con path "/" o el de la página; si
+// queda una sola, al recargar el widget re-traduce y "vuelve" solo al chino.
+function _clearGoogTransCookie() {
+  var host = location.hostname;
+  var dominios = ["", host, "." + host];
+  var parts = host.split(".");
+  if (parts.length > 2) dominios.push("." + parts.slice(-2).join("."));
+  var paths = ["/", location.pathname];
+  var exp = "expires=Thu, 01 Jan 1970 00:00:00 UTC";
+  dominios.forEach(function (d) {
+    paths.forEach(function (p) {
+      var c = "googtrans=; " + exp + "; path=" + p;
+      if (d) c += "; domain=" + d;
+      document.cookie = c;
+    });
+  });
+}
+
+// Lee el valor actual de la cookie googtrans — FUENTE DE VERDAD del estado.
+function _googtransVal() {
+  var m = document.cookie.match(/(?:^|;\s*)googtrans=([^;]*)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
+// Toggle 100% por COOKIE + reload, NO por el <select> del widget. El widget va
+// display:none y no crea .goog-te-menu-frame, así que detectar el idioma por el
+// combo fallaba y cada click re-traducía a chino sin poder volver. Google lee
+// la cookie googtrans al iniciar (aunque autoDisplay sea false).
 function toggleChineseTranslate() {
-  // El widget de Google inyecta un iframe y un <select> dentro de
-  // #google_translate_element. Lo disparamos programáticamente.
-  var frame = document.querySelector(".goog-te-menu-frame");
-  if (frame) {
-    var combo = document.querySelector(".goog-te-combo");
-    if (combo) {
-      if (combo.value === "zh-CN") {
-        // Volver a español: resetear la cookie y recargar.
-        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
-        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=." + location.hostname;
-        location.reload();
-      } else {
-        combo.value = "zh-CN";
-        combo.dispatchEvent(new Event("change"));
-      }
-      return;
-    }
+  if (/zh-CN/.test(_googtransVal())) {
+    _clearGoogTransCookie();
+  } else {
+    document.cookie = "googtrans=/es/zh-CN; path=/";
+    document.cookie = "googtrans=/es/zh-CN; path=/; domain=" + location.hostname;
   }
-  // Primera vez: esperar a que el widget cargue y seleccionar chino.
-  var tries = 0;
-  var iv = setInterval(function () {
-    var combo = document.querySelector(".goog-te-combo");
-    if (combo) {
-      clearInterval(iv);
-      combo.value = "zh-CN";
-      combo.dispatchEvent(new Event("change"));
-    }
-    if (++tries > 40) clearInterval(iv); // timeout 4s
-  }, 100);
+  window.location.replace(location.pathname + location.search);
 }
 window.toggleChineseTranslate = toggleChineseTranslate;
 
