@@ -7446,6 +7446,13 @@ async function expoApplyCustomer(cust, opts) {
 
   await onLinkedCustomerSelected({ customerId: cust.id, isRestore: !!opts.fromRestore });
 
+  // Cliente con escala activa (self-service o creado por un VENDEDOR): habilitar
+  // la escala aunque NO sea "cliente de expo" (staging). Un vendedor que elige su
+  // cliente recién creado entra por acá — el staging puede estar bloqueado por RLS
+  // para él, así que _expoClientMode no alcanza. Se recalcula en CADA selección.
+  _escalaActiva = !isAdmin && !!(customerProfile && customerProfile.escala_activa);
+  if ((_escalaActiva || _expoClientMode) && !_expoScale) await _expoLoadScale();
+
   // Persistir el cliente elegido de expo en su propia clave, para restaurarlo al
   // volver de historial/sugerencias (que recargan la página): el cliente puede
   // venir del padrón y NO estar en linkedCustomers, así que la restauración
@@ -7466,10 +7473,13 @@ async function expoApplyCustomer(cust, opts) {
     } catch (e) {}
   }
 
-  if (_expoClientMode) {
+  if (_expoClientMode || _escalaActiva) {
     // Forzar contado en la UI de pago (el cálculo ya lo fuerza igual).
     var paySel = document.getElementById("paymentSelect");
     if (paySel) paySel.value = "0.25";
+    if (_escalaActiva && typeof _escalaForceContadoUI === "function") {
+      _escalaForceContadoUI();
+    }
     _expoSyncDto();
     updateCart();
     renderProducts();
