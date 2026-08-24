@@ -8209,35 +8209,17 @@ async function _expoGuardarNuevo(mode) {
       _expoNewState.authId = await _expoCreateAuthUser(cuit, pin);
     }
 
-    if (!_expoNewState.id) {
-      var insPayload = Object.assign({}, cust, { pin: pin });
-      if (_expoNewState.authId) insPayload.auth_user_id = _expoNewState.authId;
-      var ins = await supabaseClient
-        .from("customers")
-        .insert(insPayload)
-        .select("id")
-        .single();
-      if (ins.error) throw ins.error;
-      _expoNewState.id = ins.data.id;
-    } else {
-      var updPayload = Object.assign({}, cust);
-      // Si recién ahora se creó el auth (CUIT cargado más tarde), vincularlo.
-      if (_expoNewState.authId) updPayload.auth_user_id = _expoNewState.authId;
-      var upd = await supabaseClient
-        .from("customers")
-        .update(updPayload)
-        .eq("id", _expoNewState.id);
-      if (upd.error) throw upd.error;
-    }
-
-    // Direcciones de entrega: reemplazo total (borrar + insertar).
-    await supabaseClient
-      .from("customer_delivery_addresses")
-      .delete()
-      .eq("customer_id", _expoNewState.id);
-    var addrRows = addrs.map(function (a, i) {
+    // Persistencia en UNA sola RPC (SECURITY DEFINER): customers (insert/update) +
+    // direcciones de entrega + staging del ERP, atómico y autorizado para ADMIN o
+    // VENDEDOR. El insert directo desde un vendedor lo bloquea RLS (solo admin), por
+    // eso va por RPC. La RPC además vincula el cliente nuevo a la cartera del
+    // vendedor que lo crea (user_customer_links), para que lo vea después.
+    var pCust = Object.assign({}, cust, {
+      pin: pin,
+      auth_user_id: _expoNewState.authId || null,
+    });
+    var pAddrs = addrs.map(function (a, i) {
       return {
-        customer_id: _expoNewState.id,
         slot: i + 1,
         label: a.titulo || a.direccion, // nombre de la sucursal (dirección - zona)
         direccion_entrega: a.direccion,
@@ -8246,21 +8228,7 @@ async function _expoGuardarNuevo(mode) {
         nombre_expreso: a.expreso || null,
       };
     });
-    // Puede no haber ninguna dirección todavía (cliente en pausa incompleto).
-    if (addrRows.length) {
-      var addrIns = await supabaseClient
-        .from("customer_delivery_addresses")
-        .insert(addrRows);
-      if (addrIns.error) throw addrIns.error;
-    }
-
-    // Staging para el ERP (una fila por cliente).
-    await supabaseClient
-      .from("expo_clientes_pendientes")
-      .delete()
-      .eq("customer_id", _expoNewState.id);
-    var stIns = await supabaseClient.from("expo_clientes_pendientes").insert({
-      customer_id: _expoNewState.id,
+    var pStaging = {
       cod_cliente: cust.cod_cliente,
       business_name: razon,
       cuit: cuit,
@@ -8278,11 +8246,15 @@ async function _expoGuardarNuevo(mode) {
       pin: pin,
       direcciones_entrega: addrs,
       estado: "pendiente",
-      actualizado_at: new Date().toISOString(),
+    };
+    var rpcGuardar = await supabaseClient.rpc("expo_guardar_cliente", {
+      p_id: _expoNewState.id || null,
+      p_cust: pCust,
+      p_addrs: pAddrs,
+      p_staging: pStaging,
     });
-    if (stIns.error) throw stIns.error;
-    // Nota: el vend queda en customers.vend + staging (suficiente para el ERP).
-    // La asociación a user_customer_links la resuelve el panel admin, no el alta expo.
+    if (rpcGuardar.error) throw rpcGuardar.error;
+    _expoNewState.id = rpcGuardar.data;
 
     _expoClientComplete = completo;
     _expoRefreshResumeBtn();
