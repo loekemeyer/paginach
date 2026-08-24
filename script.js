@@ -8470,7 +8470,8 @@ function renderCustomerSelector() {
   // EXPO: reemplaza el selector "Elegir razón social" por la barra
   // [Elegir cliente] [Nuevo cliente]. Solo para el operador admin.
   if (EXPO_MODE && isAdmin) {
-    renderExpoEntryBar();
+    // Barra de operador de expo RETIRADA: el admin ya no arma pedidos desde la
+    // tienda. Se sale sin renderizar la barra [Elegir cliente / + Nuevo cliente].
     return;
   }
 
