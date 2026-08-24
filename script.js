@@ -8173,6 +8173,8 @@ async function _expoGuardarNuevo(mode) {
       whatsapp: whatsapp || null,
       direccion_fiscal: dirFiscal || null,
       localidad: locFiscal || null,
+      // Escala activa: el cliente fija su dto con su 1er pedido (lo ve al entrar él).
+      escala_activa: true,
     };
 
     // El usuario auth (login del cliente) SOLO se puede crear con CUIT (el email
