@@ -6421,14 +6421,40 @@ function _expoListSubtotal() {
   return s;
 }
 
-// dto (fracción) que corresponde a un subtotal según la escala.
+// Tope de dto de la escala según el cliente: con vendedor la comisión se lleva
+// ~7%, así que al cliente le queda como máximo 12%. Sin vendedor, el descuento
+// completo (hasta el tope de la tabla, 19%). Aplica tanto al modo escala como al
+// cliente nuevo de expo (los dos valorizan por la misma escala).
+function _escalaTopeDto() {
+  var tieneVend =
+    customerProfile && String(customerProfile.vend || "").trim() !== "";
+  return tieneVend ? 0.12 : 1; // 1 = sin tope (manda el máximo de la tabla)
+}
+
+// Tramos "efectivos" para el cliente actual: cada dto topeado, y cortando los
+// que quedan por encima del tope (para que la barra no repita el 12% N veces).
+function _escalaTiersEff() {
+  var tope = _escalaTopeDto();
+  var src = (_expoScale || []).slice().sort(function (a, b) {
+    return Number(a.desde) - Number(b.desde);
+  });
+  var out = [];
+  for (var i = 0; i < src.length; i++) {
+    var d = Math.min(Number(src[i].dto), tope);
+    out.push({ desde: Number(src[i].desde), dto: d });
+    if (d >= tope) break; // no mostrar tramos más allá del tope
+  }
+  return out;
+}
+
+// dto (fracción) que corresponde a un subtotal según la escala, topeado por vend.
 function _expoScaleDtoFor(sub) {
   if (!_expoScale || !_expoScale.length) return 0;
   var dto = 0;
   _expoScale.forEach(function (t) {
     if (sub >= Number(t.desde)) dto = Number(t.dto);
   });
-  return dto;
+  return Math.min(dto, _escalaTopeDto());
 }
 
 // Sincroniza el dto del cliente-expo con la escala según el carrito actual.
@@ -6453,9 +6479,7 @@ function _expoSyncDto() {
 function _escalaRenderCheckpoints() {
   if (!_escalaActiva || !_expoScale || !_expoScale.length) return;
 
-  var tiers = _expoScale.slice().sort(function (a, b) {
-    return Number(a.desde) - Number(b.desde);
-  });
+  var tiers = _escalaTiersEff();
   var sub = _expoListSubtotal();
   var n = tiers.length;
   var curIdx = 0;
@@ -6479,7 +6503,14 @@ function _escalaRenderCheckpoints() {
       '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
       "</div>";
   });
-  var next = _expoNextTier(sub);
+  // Próximo tramo calculado sobre los tramos EFECTIVOS (topeados por vendedor).
+  var next = null;
+  for (var j = 0; j < n; j++) {
+    if (Number(tiers[j].desde) > sub) {
+      next = { dto: Number(tiers[j].dto), falta: Number(tiers[j].desde) - sub };
+      break;
+    }
+  }
   var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
   var right = next
     ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
@@ -6623,9 +6654,7 @@ function _expoRenderCheckpoints() {
     cp.style.display = "none";
     return;
   }
-  var tiers = _expoScale.slice().sort(function (a, b) {
-    return Number(a.desde) - Number(b.desde);
-  });
+  var tiers = _escalaTiersEff();
   var sub = _expoListSubtotal();
   var n = tiers.length;
   var curIdx = 0;
@@ -6649,7 +6678,14 @@ function _expoRenderCheckpoints() {
       '<span class="expo-cp-amt">' + _expoCompact(t.desde) + "</span>" +
       "</div>";
   });
-  var next = _expoNextTier(sub);
+  // Próximo tramo sobre los tramos EFECTIVOS (topeados por vendedor).
+  var next = null;
+  for (var k = 0; k < n; k++) {
+    if (Number(tiers[k].desde) > sub) {
+      next = { dto: Number(tiers[k].dto), falta: Number(tiers[k].desde) - sub };
+      break;
+    }
+  }
   var curDto = Math.round(Number(tiers[curIdx].dto) * 100);
   var right = next
     ? "Faltan <b>$" + _expoMoney(next.falta) + "</b> para " + Math.round(next.dto * 100) + "%"
