@@ -3038,3 +3038,27 @@ input[type="number"].manual-cell {
   background: #dcfce7;
   color: #166534;
 }
+
+/* ── Copiar CUIT en ficha de cliente ─────────────────────────────── */
+.cc-cuit-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 0 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.cc-cuit-copy:hover { background: rgba(0, 0, 0, 0.06); }
+.cc-cuit-ico {
+  width: 13px;
+  height: 13px;
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+.cc-cuit-copy:hover .cc-cuit-ico { opacity: 0.9; }
+.cc-cuit-copy.copiado {
+  background: #dcfce7;
+  color: #15803d;
+}
+.cc-cuit-copy.copiado .cc-cuit-ico { opacity: 1; }

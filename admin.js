@@ -1033,7 +1033,14 @@ function renderClientes(clientes, addresses) {
         '<div class="cc-info"><div class="cc-razon">' +
         (c.business_name || "-") +
         '</div><div class="cc-cuit">CUIT: ' +
-        (c.cuit || "-") +
+        (c.cuit
+          ? '<span class="cc-cuit-copy" title="Copiar CUIT" onclick="copiarCuit(event, this, \'' +
+            c.cuit +
+            '\')">' +
+            c.cuit +
+            ' <svg class="cc-cuit-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+            "</span>"
+          : "-") +
         "</div></div>" +
         '<div class="cc-meta"><span class="cc-badge">' +
         addrs.length +
@@ -1161,6 +1168,38 @@ window.toggleCard = function (header) {
   var chevron = header.querySelector(".cc-chevron");
   body.classList.toggle("open");
   chevron.classList.toggle("open");
+};
+
+// Copiar CUIT al portapapeles. stopPropagation para no togglear la ficha.
+window.copiarCuit = function (ev, el, cuit) {
+  if (ev) ev.stopPropagation();
+  var val = String(cuit || "");
+  if (!val) return;
+  function feedback() {
+    if (el) {
+      el.classList.add("copiado");
+      setTimeout(function () { el.classList.remove("copiado"); }, 1200);
+    }
+    if (typeof toast === "function") toast("CUIT copiado", "success");
+  }
+  function fallback() {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = val;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e) { /* noop */ }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(val).then(feedback, function () { fallback(); feedback(); });
+  } else {
+    fallback();
+    feedback();
+  }
 };
 
 window.deleteCliente = async function (clienteId) {
