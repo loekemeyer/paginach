@@ -6473,8 +6473,11 @@ function _expoSyncDto() {
       if (d > maxBase) maxBase = d;
     });
   }
-  var noVend = !(customerProfile.vend && String(customerProfile.vend).trim());
-  var tope = noVend ? 0.19 : 0.12;
+  // vend 7 = "nosotros" (FCA): NO hay comisión -> va al tope alto, igual que sin
+  // vendedor. Solo un vendedor real (vend no vacío y distinto de 7) topea en 12%.
+  var _v = customerProfile.vend ? String(customerProfile.vend).trim() : "";
+  var sinComision = (_v === "" || _v === "7");
+  var tope = sinComision ? 0.19 : 0.12;
   _escalaFactor = maxBase > 0 ? tope / maxBase : 1;
   customerProfile.dto_vol = Math.min(base * _escalaFactor, tope);
   _expoRenderCheckpoints();
