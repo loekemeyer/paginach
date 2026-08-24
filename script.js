@@ -8021,7 +8021,25 @@ function _expoFillVendedores() {
   sel.innerHTML = EXPO_VENDEDORES.map(function (v) {
     return '<option value="' + v.c + '">' + v.c + " - " + v.n + "</option>";
   }).join("");
-  sel.value = "7"; // default: nosotros
+  // Un vendedor solo puede cargar clientes PARA ÉL: se fija su propio código y se
+  // bloquea el selector. El admin sí puede elegir cualquier vendedor. (El backend
+  // lo fuerza igual en la RPC expo_guardar_cliente, esto es solo la UI.)
+  var esVend = typeof isActualVendor === "function" && isActualVendor();
+  if (esVend && _vendorOwnProfile && _vendorOwnProfile.vend != null &&
+      String(_vendorOwnProfile.vend) !== "") {
+    var myVend = String(_vendorOwnProfile.vend);
+    if (!sel.querySelector('option[value="' + myVend + '"]')) {
+      var o = document.createElement("option");
+      o.value = myVend;
+      o.textContent = myVend + " - (mi cartera)";
+      sel.appendChild(o);
+    }
+    sel.value = myVend;
+    sel.disabled = true;
+  } else {
+    sel.value = "7"; // default: nosotros
+    sel.disabled = false;
+  }
 }
 
 async function expoNuevoCliente() {

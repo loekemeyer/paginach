@@ -7,9 +7,10 @@
 -- podía insertar en customers).
 --
 -- AUTORIZA: admin O vendedor (auth_user_id con filas en user_customer_links).
--- Al crear, si el que llama es vendedor, VINCULA el cliente a su cartera.
--- Un vendedor solo puede EDITAR clientes que sigan en el staging de expo
--- (no clientes ya establecidos en el ERP).
+-- REGLA: un vendedor solo puede cargar clientes PARA ÉL — el vend se fuerza al
+-- del propio vendedor (ignora el payload), y solo puede EDITAR clientes suyos
+-- (vinculados) que sigan en el staging de expo. El admin puede asignar cualquier
+-- vendedor. Al crear, si es vendedor, VINCULA el cliente a su cartera.
 --
 -- SECURITY DEFINER + revoke a public/anon.
 -- ============================================================================
@@ -22,14 +23,27 @@ create or replace function public.expo_guardar_cliente(
 ) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare
-  v_admin boolean;
-  v_vend  boolean;
-  v_id    uuid;
+  v_admin    boolean;
+  v_vend     boolean;
+  v_id       uuid;
+  v_vend_own text;
+  v_vend_eff text;
 begin
   v_admin := exists (select 1 from admins a where a.auth_user_id = auth.uid());
   v_vend  := exists (select 1 from user_customer_links l where l.auth_user_id = auth.uid());
   if not v_admin and not v_vend then
     raise exception 'no autorizado';
+  end if;
+
+  -- Un vendedor solo carga clientes para él: se fuerza su propio vend.
+  if not v_admin then
+    select c.vend into v_vend_own
+    from customers c
+    where c.auth_user_id = auth.uid()
+    limit 1;
+    v_vend_eff := v_vend_own;
+  else
+    v_vend_eff := nullif(p_cust->>'vend','');
   end if;
 
   if p_id is null then
@@ -41,7 +55,7 @@ begin
       nullif(p_cust->>'cuit',''),
       nullif(p_cust->>'cod_cliente','')::bigint,
       coalesce((p_cust->>'dto_vol')::numeric, 0),
-      nullif(p_cust->>'vend',''),
+      v_vend_eff,
       nullif(p_cust->>'mail',''),
       nullif(p_cust->>'whatsapp',''),
       nullif(p_cust->>'direccion_fiscal',''),
@@ -63,12 +77,18 @@ begin
     ) then
       raise exception 'no autorizado (cliente fuera de expo)';
     end if;
+    if not v_admin and not exists (
+      select 1 from user_customer_links l
+      where l.auth_user_id = auth.uid() and l.customer_id = v_id
+    ) then
+      raise exception 'no autorizado (cliente de otro)';
+    end if;
     update customers set
       business_name    = p_cust->>'business_name',
       cuit             = nullif(p_cust->>'cuit',''),
       cod_cliente      = nullif(p_cust->>'cod_cliente','')::bigint,
       dto_vol          = coalesce((p_cust->>'dto_vol')::numeric, 0),
-      vend             = nullif(p_cust->>'vend',''),
+      vend             = v_vend_eff,
       mail             = nullif(p_cust->>'mail',''),
       whatsapp         = nullif(p_cust->>'whatsapp',''),
       direccion_fiscal = nullif(p_cust->>'direccion_fiscal',''),
@@ -113,7 +133,7 @@ begin
       nullif(p_staging->>'telefono',''),
       nullif(p_staging->>'whatsapp',''),
       nullif(p_staging->>'mail',''),
-      nullif(p_staging->>'vend',''),
+      v_vend_eff,
       coalesce((p_staging->>'dto_vol')::numeric, 0),
       nullif(p_staging->>'pin',''),
       coalesce(p_staging->'direcciones_entrega', '[]'::jsonb),
