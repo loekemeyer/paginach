@@ -2604,6 +2604,11 @@
           (!it.found ? " scot-row-bad" : "") +
           (!it.included ? " scot-row-excluded" : "");
         var subtotal = it.unitPrice * (it.cajas || 0) * (it.uxb || 0);
+        // Chef supers (Cencosud/Dorinka) llevan sufijo "L" en el código LK.
+        // Se muestra en pantalla para que coincida con el Excel y la sheet.
+        var codLkDisplay = isChefSuper(state.superKey)
+          ? it.codLk + "L"
+          : it.codLk;
         return (
           '<tr class="' +
           rowCls +
@@ -2617,7 +2622,7 @@
           '<td title="' +
           escapeHtml(it.description || "") +
           '">' +
-          escapeHtml(it.codLk) +
+          escapeHtml(codLkDisplay) +
           (it.isLoke
             ? ' <span class="scot-pill" style="background:#fde2c4;color:#a04a00;font-size:9px;padding:1px 5px">LOKE</span>'
             : "") +
