@@ -133,6 +133,12 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     out.abre = editingOrderId === "55" && cart.length === 1 && cart[0].productId === "p1" && cart[0].qtyCajas === 2 && editMinQty("p1") === 2;
     const banner = document.getElementById("editOrderBanner");
     out.banner = !!banner && /#55/.test(banner.textContent) && document.getElementById("carrito").classList.contains("active");
+    // descuentos del pedido (2% web, 5% pago) en el total que ve el cliente; Entrega/Pago escondidos
+    const tt = calcTotals();
+    out.descuentos = tt.paymentDiscount === 0.05 && tt.webDiscountRate === 0.02
+      && document.getElementById("pedidoTotalHeader").innerText === formatMoney(2000 * 0.98 * 0.95)
+      && document.body.classList.contains("chef-editing")
+      && getComputedStyle(document.getElementById("paymentRow")).display === "none";
     let cartHtml = document.getElementById("cart").innerHTML;
     out.pisoVisible = /Ya en el pedido: 2/.test(cartHtml) && /disabled(="")?\s+title="Ya está en el pedido/.test(cartHtml) && !/removeItem\('p1'\)/.test(cartHtml);
     if (!out.pisoVisible) out.pisoHtml = cartHtml.slice(0, 900);
@@ -187,7 +193,8 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     await submitOrder();
     out.sinCambios = /No agregaste nada nuevo/.test(document.getElementById("orderStatus").textContent) && F.tables.order_items.length === antes56;
     cancelEdit();
-    out.cancela = editingOrderId === null && cart.length === 0 && document.getElementById("productos").classList.contains("active");
+    out.cancela = editingOrderId === null && cart.length === 0 && document.getElementById("productos").classList.contains("active")
+      && !document.body.classList.contains("chef-editing") && getComputedStyle(document.getElementById("paymentRow")).display !== "none";
     return out;
   });
 
@@ -197,6 +204,7 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     ["editOrder: carrito con las líneas del pedido y su piso", r.abre],
     ["cartel amarillo con el N° y va al carrito", r.banner],
     ["el − deshabilitado, sin ✕, 'Ya en el pedido: 2'", r.pisoVisible],
+    ["total con los descuentos del pedido (2% + 5%); Entrega y Pago escondidos", r.descuentos],
     ["no se baja ni se saca lo que ya estaba (3 avisos)", r.noBaja],
     ["sí se sube y lo nuevo se puede sacar", r.sube && r.sacaNuevo],
     ["Confirmar habilitado sin elegir entrega ni pago", r.confirmarHabilitado],

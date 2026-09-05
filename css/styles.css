@@ -12354,6 +12354,7 @@ body.is-scrolled .logo-img {
 }
 /* Cartel "Estás editando…" debajo de Confirmar pedido */
 #carrito #editOrderBanner {
+  grid-column: 1 / -1;       /* el header es un grid con áreas: fila propia, a lo ancho, debajo de Confirmar */
   margin-top: 8px;
   padding: 8px 12px;
   border-radius: 10px;
@@ -12382,3 +12383,7 @@ body.is-scrolled .logo-img {
   color: #8a6608;
   margin-top: 4px;
 }
+
+/* Editando un pedido: Entrega y Método de pago ya están en el pedido → no se muestran */
+body.chef-editing #carrito .cart-col-left .ship-row { display: none !important; }
+.cart-min-hint { white-space: nowrap; }

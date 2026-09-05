@@ -1570,21 +1570,28 @@ ${
  * ===================================================================== */
 let editingOrderId = null;
 let editBaseQty = {};   // { productId: cajas que ya tenía el pedido } = el piso de cada línea
+let editOrderDisc = null;   // { web, pago }: los descuentos del pedido, para que el total del carrito coincida
 const EDITING_LS_KEY = "lk_editing_order_v1";
 const EDITING_BASE_LS_KEY = "lk_editing_base_v1";
+const EDITING_DISC_LS_KEY = "lk_editing_disc_v1";
 
-function setEditingOrderId(orderId, baseQty) {
+function setEditingOrderId(orderId, baseQty, disc) {
   editingOrderId = orderId ? String(orderId) : null;
   editBaseQty = editingOrderId ? (baseQty || {}) : {};
+  editOrderDisc = editingOrderId ? (disc || null) : null;
   try {
     if (editingOrderId) {
       localStorage.setItem(EDITING_LS_KEY, editingOrderId);
       localStorage.setItem(EDITING_BASE_LS_KEY, JSON.stringify(editBaseQty));
+      localStorage.setItem(EDITING_DISC_LS_KEY, JSON.stringify(editOrderDisc || {}));
     } else {
       localStorage.removeItem(EDITING_LS_KEY);
       localStorage.removeItem(EDITING_BASE_LS_KEY);
+      localStorage.removeItem(EDITING_DISC_LS_KEY);
     }
   } catch (e) {}
+  // Editando se esconden Entrega y Método de pago (ya están en el pedido) — CSS body.chef-editing.
+  try { document.body.classList.toggle("chef-editing", !!editingOrderId); } catch (e) {}
 }
 
 /* El piso de una línea: cuántas cajas NO se pueden bajar. 0 si no estamos
@@ -1621,6 +1628,13 @@ async function editOrder(orderId) {
       .select("product_id, cajas")
       .eq("order_id", orderId);
     if (error) throw error;
+    // Los descuentos del pedido, para que el total que ve el cliente mientras edita sea el real
+    // (la RPC recalcula con estos mismos; sin ellos el carrito mostraba 0% de pago).
+    let disc = null;
+    try {
+      const h = await supabaseClient.from("orders").select("payment_discount, web_discount").eq("id", orderId).single();
+      if (h.data) disc = { web: Number(h.data.web_discount || 0), pago: Number(h.data.payment_discount || 0) };
+    } catch (e) {}
     if (!data || !data.length) {
       alert("Ese pedido no tiene items para editar.");
       return;
@@ -1642,7 +1656,7 @@ async function editOrder(orderId) {
       cart.push({ productId: pid, qtyCajas: q });
       base[pid] = q;
     });
-    setEditingOrderId(orderId, base);
+    setEditingOrderId(orderId, base, disc);
     saveCartToLS();
     updateCart();
     renderProducts();
@@ -4495,9 +4509,12 @@ function saveCartToLS() {
       editingOrderId = String(savedEditing);
       try { editBaseQty = JSON.parse(localStorage.getItem(EDITING_BASE_LS_KEY) || "{}") || {}; }
       catch (e2) { editBaseQty = {}; }
+      try { editOrderDisc = JSON.parse(localStorage.getItem(EDITING_DISC_LS_KEY) || "null"); }
+      catch (e3) { editOrderDisc = null; }
     } else if (!savedCart.length) {
       localStorage.removeItem(EDITING_LS_KEY);
       localStorage.removeItem(EDITING_BASE_LS_KEY);
+      localStorage.removeItem(EDITING_DISC_LS_KEY);
     }
   } catch (e) {}
 })();
@@ -4676,8 +4693,12 @@ function toggleControls(productId, show) {
 
 function calcTotals() {
   const logged = !!currentSession;
-  const paymentDiscount = getPaymentDiscount();
-  const webDiscountRate = (isAdmin && !hasVendorSelection() && !_expoActiveCustomer) ? 0 : WEB_ORDER_DISCOUNT;
+  // Editando un pedido (idea 4990): los descuentos son los del pedido, no los del selector.
+  const enEdicion = !!(editingOrderId && editOrderDisc);
+  const paymentDiscount = enEdicion ? Number(editOrderDisc.pago || 0) : getPaymentDiscount();
+  const webDiscountRate = enEdicion
+    ? Number(editOrderDisc.web || 0)
+    : ((isAdmin && !hasVendorSelection() && !_expoActiveCustomer) ? 0 : WEB_ORDER_DISCOUNT);
 
   let subtotal = 0;
 
@@ -4791,7 +4812,7 @@ function updateCart() {
               <button type="button" class="cart-step-btn" onclick="changeQty('${pidAttr}', 1)" aria-label="Sumar una caja">+</button>
               ${min > 0 ? "" : `<button type="button" class="cart-step-remove" onclick="removeItem('${pidAttr}')" aria-label="Eliminar del pedido" title="Eliminar">✕</button>`}
             </div>
-            ${min > 0 ? `<div class="cart-min-hint">Ya en el pedido: ${min} — sólo se puede agregar</div>` : ""}
+            ${min > 0 ? `<div class="cart-min-hint">Ya en el pedido: ${min}</div>` : ""}
           </td>
           <td>${formatMoney(totalUni)}</td>
           <td>${t.logged ? "$" + formatMoney(tuPrecioUnit) + "<br><span class='cart-iva'>+ IVA</span>" : "—"}</td>
@@ -9313,7 +9334,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.updateCart = updateCart;
   window.submitOrder = submitOrder;
   window.cancelEdit = cancelEdit;
-  if (editingOrderId) setEditBanner(editingOrderId);
+  if (editingOrderId) { setEditBanner(editingOrderId); try { document.body.classList.add("chef-editing"); } catch (e) {} }
   window.openProfile = openProfile;
   window.volverMayorista = volverMayorista;
   window.descargarPedidoPDF = descargarPedidoPDF;
