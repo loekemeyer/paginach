@@ -1351,7 +1351,7 @@ async function loadMyOrdersUI() {
   try {
     const { data, error } = await supabaseClient
       .from("orders")
-      .select("id, created_at, total")
+      .select("id, created_at, total, enviado_a_compras_at")
       .eq("customer_id", customerProfile.id)
       .order("created_at", { ascending: false });
 
@@ -1454,6 +1454,14 @@ async function loadMyOrdersUI() {
         <button class="hist-btn" data-repeat="${esc(order.id)}">
           Repetir Pedido
         </button>
+${
+  isOrderEditable(order)
+    ? `        <div class="hist-edit-wrap">
+          <span class="hist-edit-hint">Pod&eacute;s agregar art&iacute;culos hasta las 12:30 hs.</span>
+          <button class="hist-edit-link" data-edit="${esc(order.id)}">&#9998; Editar pedido</button>
+        </div>`
+    : ""
+}
       </div>
     </div>
     <div class="order-col order-tracking" data-stage="${st.stage}">
@@ -1488,6 +1496,11 @@ async function loadMyOrdersUI() {
           await repeatOrder(repeatId);
           return;
         }
+        const editId = e.target.dataset.edit;
+        if (editId) {
+          await editOrder(editId);
+          return;
+        }
         const downloadId = e.target.dataset.downloadOrder;
         if (downloadId) {
           await descargarComprobantePedido(downloadId);
@@ -1501,8 +1514,289 @@ async function loadMyOrdersUI() {
   }
 }
 
+/* =====================================================================
+ * EDITAR PEDIDO — el cliente sólo puede AGREGAR (idea 4990, 2026-09-05)
+ * Espejo del módulo de LK (pagina-lk-copia v2.3.300/301), adaptado a Chef:
+ *  · Chef no tiene RPC de pedidos: el pedido se inserta directo en orders y
+ *    order_items desde acá. La edición también va directo: INSERTA sólo las
+ *    líneas nuevas (o el delta de cajas) en order_items y actualiza la
+ *    cabecera. Nunca borra ni baja nada.
+ *  · ⚠ Gestión Virgilio (gv_pedidos_web_np_chef, en LK) y el mail de las 12:30
+ *    (procesar-pedidos-db) leen los ítems de orders.sheets_payload.items, NO
+ *    de order_items → la edición REESCRIBE sheets_payload con la lista
+ *    completa. Sin eso la edición no le llega a nadie.
+ *  · Ventana: hasta que el pedido sale a compras (enviado_a_compras_at).
+ *  · El candado "sólo agregar" acá es de UI + chequeo en el front antes de
+ *    escribir. El de verdad (RPC edit_order_fast + policies) está escrito en
+ *    sql/edit_order_fast_chef.sql para correr en el proyecto Supabase de Chef;
+ *    cuando esté, _editOrderChef pasa a llamar la RPC.
+ * ===================================================================== */
+let editingOrderId = null;
+let editBaseQty = {};   // { productId: cajas que ya tenía el pedido } = el piso de cada línea
+const EDITING_LS_KEY = "lk_editing_order_v1";
+const EDITING_BASE_LS_KEY = "lk_editing_base_v1";
+
+function setEditingOrderId(orderId, baseQty) {
+  editingOrderId = orderId ? String(orderId) : null;
+  editBaseQty = editingOrderId ? (baseQty || {}) : {};
+  try {
+    if (editingOrderId) {
+      localStorage.setItem(EDITING_LS_KEY, editingOrderId);
+      localStorage.setItem(EDITING_BASE_LS_KEY, JSON.stringify(editBaseQty));
+    } else {
+      localStorage.removeItem(EDITING_LS_KEY);
+      localStorage.removeItem(EDITING_BASE_LS_KEY);
+    }
+  } catch (e) {}
+}
+
+/* El piso de una línea: cuántas cajas NO se pueden bajar. 0 si no estamos
+   editando o si el producto no estaba en el pedido original (ése se puede
+   sacar libremente: lo agregó el cliente en esta misma edición). */
+function editMinQty(productId) {
+  if (!editingOrderId) return 0;
+  return Number(editBaseQty[String(productId)]) || 0;
+}
+
+function avisoSoloAgregar(min) {
+  try {
+    alert(
+      "A un pedido ya mandado sólo se le puede AGREGAR.\n\n" +
+      "Este producto ya está en el pedido con " + min + " caja(s): no se puede bajar ni sacar.\n\n" +
+      "Si necesitás sacar algo, escribinos y lo hacemos nosotros."
+    );
+  } catch (e) {}
+}
+
+// Editable mientras NO haya salido a compras (el mail de las 12:30 de Chef).
+function isOrderEditable(order) {
+  return !!order && !order.enviado_a_compras_at;
+}
+
+async function editOrder(orderId) {
+  try {
+    const { data, error } = await supabaseClient
+      .from("order_items")
+      .select("product_id, cajas")
+      .eq("order_id", orderId);
+    if (error) throw error;
+    if (!data || !data.length) {
+      alert("Ese pedido no tiene items para editar.");
+      return;
+    }
+    // Se SUMA por producto: un mismo producto puede estar en dos filas (y con
+    // esta edición, siempre que se agregue a una línea existente, lo va a estar).
+    const porProd = new Map();
+    data.forEach((it) => {
+      if (!it.product_id) return;
+      const c = Math.round(Number(it.cajas || 0));
+      if (!c) return;
+      const k = String(it.product_id);
+      porProd.set(k, (porProd.get(k) || 0) + c);
+    });
+    cart.splice(0, cart.length);
+    const base = {};
+    porProd.forEach((cajas, pid) => {
+      const q = Math.max(1, cajas);
+      cart.push({ productId: pid, qtyCajas: q });
+      base[pid] = q;
+    });
+    setEditingOrderId(orderId, base);
+    saveCartToLS();
+    updateCart();
+    renderProducts();
+    setEditBanner(editingOrderId);
+    showSection("carrito");
+  } catch (err) {
+    console.error("editOrder error:", err);
+    alert("No se pudo abrir el pedido para editar.");
+  }
+}
+
+// Cartel "Estás editando el pedido #X" debajo del botón Confirmar.
+function setEditBanner(orderId) {
+  let banner = document.getElementById("editOrderBanner");
+  if (!orderId) {
+    if (banner) banner.remove();
+    return;
+  }
+  const btn = $("submitOrderBtn");
+  if (!btn || !btn.parentNode) return;
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "editOrderBanner";
+    btn.parentNode.appendChild(banner);
+  }
+  banner.innerHTML =
+    "<span>Estás editando el pedido <strong>#" + esc(String(orderId)) + "</strong>. " +
+    "Podés <strong>agregar</strong> hasta las 12:30 hs sin avisarnos. Lo que ya está en el pedido " +
+    "no se puede sacar ni bajar — si necesitás sacar algo, escribinos. " +
+    "Los descuentos se recalculan con la condición de pago original del pedido.</span>" +
+    '<button type="button" id="cancelEditBtn" class="hist-btn subtle">Cancelar edición</button>';
+  const cancel = document.getElementById("cancelEditBtn");
+  if (cancel) cancel.onclick = cancelEdit;
+}
+
+function cancelEdit() {
+  setEditingOrderId(null);
+  setEditBanner(null);
+  cart.length = 0;
+  saveCartToLS();
+  updateCart();
+  renderProducts();
+  showSection("productos");
+}
+
+/* Las líneas del carrito como filas de order_items (misma forma que al crear). */
+function _buildItemsPayload(orderId) {
+  return cart
+    .map((item) => {
+      const p = products.find((x) => String(x.id) === String(item.productId));
+      if (!p) return null;
+
+      const qtyCajas = Number(item.qtyCajas || 0);
+      const uxb = Number(p.uxb || 0);
+      const totalUni = qtyCajas * uxb;
+
+      return {
+        order_id: orderId,
+        product_id: p.id,
+        cod_art: String(p.cod || "").trim(),
+        cajas: qtyCajas,
+        uxb,
+        unidades: totalUni,
+        unit_price: Number(unitYourPrice(p.list_price) || 0),
+        list_price: Number(p.list_price || 0),
+        description: String(p.description || ""),
+      };
+    })
+    .filter(Boolean);
+}
+
+/* AGREGAR al pedido existente. Devuelve { orderId, subtotal, total, lineas, cajas,
+   sucursal, metodoPago, paymentDiscount, webDiscount }. Tira Error con el
+   motivo si no se puede. */
+async function _editOrderChef(orderId, itemsPayload) {
+  // 1. La cabecera, fresca: candado de las 12:30, dueño, descuentos y payload viejo.
+  const head = await withTimeout(
+    supabaseClient
+      .from("orders")
+      .select("id, customer_id, enviado_a_compras_at, sheets_payload, payment_method, payment_discount, web_discount, subtotal, total")
+      .eq("id", orderId)
+      .single(),
+    30000,
+    "Supabase select orders",
+  );
+  if (head.error || !head.data) throw new Error(head.error?.message || "Pedido inexistente");
+  const o = head.data;
+  if (String(o.customer_id) !== String(customerProfile?.id)) {
+    throw new Error("El pedido no es de esta razón social.");
+  }
+  if (o.enviado_a_compras_at) {
+    throw new Error("El pedido ya salió a compras (12:30 hs): ya no se puede modificar.");
+  }
+
+  // 2. Lo que ya tiene, sumado por producto.
+  const cur = await withTimeout(
+    supabaseClient.from("order_items").select("product_id, cajas").eq("order_id", orderId),
+    30000,
+    "Supabase select order_items",
+  );
+  if (cur.error) throw new Error(cur.error.message);
+  const tenia = {};
+  (cur.data || []).forEach((r) => {
+    if (!r.product_id) return;
+    tenia[String(r.product_id)] = (tenia[String(r.product_id)] || 0) + Number(r.cajas || 0);
+  });
+
+  // 3. Sólo agregar: nada baja, nada desaparece. Lo que no está en el catálogo
+  //    (producto dado de baja) queda como estaba.
+  const ahora = {};
+  cart.forEach((it) => { ahora[String(it.productId)] = (ahora[String(it.productId)] || 0) + Number(it.qtyCajas || 0); });
+  const bajan = Object.keys(tenia).filter((pid) => (ahora[pid] || 0) < tenia[pid]);
+  if (bajan.length) {
+    throw new Error("A un pedido ya mandado sólo se le puede AGREGAR: no se pueden quitar productos ni bajar cantidades. Si necesitás sacar algo, escribinos.");
+  }
+
+  // 4. El delta → filas NUEVAS en order_items (nunca se toca una fila existente).
+  const nuevas = [];
+  const deltaPorCod = [];
+  let subtotalMas = 0;
+  itemsPayload.forEach((it) => {
+    const d = Number(it.cajas || 0) - (tenia[String(it.product_id)] || 0);
+    if (d <= 0) return;
+    nuevas.push({
+      order_id: orderId,
+      product_id: it.product_id,
+      cajas: d,
+      uxb: it.uxb,
+      unit_your_price: it.unit_price,
+      unit_list_price: it.list_price,
+    });
+    deltaPorCod.push({ cod_art: it.cod_art, cajas: d, uxb: it.uxb });
+    subtotalMas += Number(it.unit_price || 0) * d * Number(it.uxb || 0);
+  });
+  if (!nuevas.length) throw new Error("No agregaste nada nuevo al pedido.");
+
+  const resItems = await withTimeout(
+    supabaseClient.from("order_items").insert(nuevas),
+    60000,
+    "Supabase insert order_items (edición)",
+  );
+  if (resItems.error) throw new Error(resItems.error.message || JSON.stringify(resItems.error));
+
+  // 5. Cabecera + sheets_payload (lo que leen Gestión Virgilio y el mail de las 12:30).
+  //    Los ítems viejos quedan tal cual; el delta se suma a la línea del mismo
+  //    código si existe, si no se agrega al final.
+  const payOld = (o.sheets_payload && typeof o.sheets_payload === "object") ? o.sheets_payload : {};
+  const items = Array.isArray(payOld.items) ? payOld.items.map((x) => Object.assign({}, x)) : [];
+  deltaPorCod.forEach((d) => {
+    const k = String(d.cod_art || "").trim().toUpperCase();
+    const ex = items.find((x) => String(x.cod_art || "").trim().toUpperCase() === k);
+    if (ex) ex.cajas = Number(ex.cajas || 0) + d.cajas;
+    else items.push({ cod_art: d.cod_art, cajas: d.cajas, uxb: d.uxb });
+  });
+  const web = Number(o.web_discount || 0);
+  const pago = Number(o.payment_discount || 0);
+  const subtotal = Number(o.subtotal || 0) + subtotalMas;
+  const total = subtotal * (1 - web) * (1 - pago);
+  const payNew = Object.assign({}, payOld, {
+    items: items,
+    order_total: Number(total || 0),
+    editado_at: new Date().toISOString(),
+  });
+  const resHead = await withTimeout(
+    supabaseClient
+      .from("orders")
+      .update({ subtotal: subtotal, total: total, sheets_payload: payNew })
+      .eq("id", orderId),
+    60000,
+    "Supabase update orders (edición)",
+  );
+  if (resHead.error) {
+    // Las líneas ya entraron en order_items; que quede registrado por qué el payload no.
+    console.error("[ORDER] edit: order_items OK pero falló la cabecera:", resHead.error);
+    throw new Error("Se agregaron las líneas pero no se pudo actualizar el total del pedido: " + (resHead.error.message || ""));
+  }
+
+  return {
+    orderId: orderId,
+    subtotal: subtotal,
+    total: total,
+    lineas: nuevas.length,
+    cajas: nuevas.reduce((a, x) => a + Number(x.cajas || 0), 0),
+    sucursal: String(payOld.sucursalEntrega || payOld.sucursal_entrega || ""),
+    metodoPago: String(o.payment_method || payOld.condicionPago || ""),
+    paymentDiscount: pago,
+    webDiscount: web,
+  };
+}
+
 async function repeatOrder(orderId) {
   try {
+    // Repetir siempre crea un pedido NUEVO — salir de cualquier modo edición.
+    setEditingOrderId(null);
+    setEditBanner(null);
     // Pedimos varias posibles columnas de cantidad para cubrir tu esquema real
     const { data, error } = await supabaseClient
       .from("order_items")
@@ -4215,6 +4509,20 @@ function saveCartToLS() {
 (function hydrateCartFromLS() {
   const savedCart = loadCartFromLS();
   if (savedCart.length) cart.splice(0, cart.length, ...savedCart);
+  // Modo edición (idea 4990): si el carrito guardado era de un pedido en edición,
+  // volver con el pedido y con el piso de cada línea; si no, sin piso reaparece
+  // la ✕ y el cliente cree que puede sacar.
+  try {
+    const savedEditing = localStorage.getItem(EDITING_LS_KEY);
+    if (savedEditing && savedCart.length) {
+      editingOrderId = String(savedEditing);
+      try { editBaseQty = JSON.parse(localStorage.getItem(EDITING_BASE_LS_KEY) || "{}") || {}; }
+      catch (e2) { editBaseQty = {}; }
+    } else if (!savedCart.length) {
+      localStorage.removeItem(EDITING_LS_KEY);
+      localStorage.removeItem(EDITING_BASE_LS_KEY);
+    }
+  } catch (e) {}
 })();
 
 function isVendorProfileBrowseMode() {
@@ -4317,6 +4625,13 @@ function changeQty(productId, delta) {
   const item = cart.find((i) => i.productId === productId);
   if (!item) return;
 
+  // Sólo agregar (idea 4990): no se baja de lo que el pedido ya tenía.
+  const min = editMinQty(productId);
+  if (delta < 0 && item.qtyCajas + delta < min) {
+    avisoSoloAgregar(min);
+    return;
+  }
+
   item.qtyCajas += delta;
 
   if (item.qtyCajas <= 0) {
@@ -4340,6 +4655,16 @@ function manualQty(productId, value) {
   const item = cart.find((i) => i.productId === productId);
   if (!item) return;
 
+  // Sólo agregar (idea 4990). Se avisa y se devuelve el input a su valor.
+  const min = editMinQty(productId);
+  if (qty < min) {
+    avisoSoloAgregar(min);
+    const inp = document.querySelector(`#qty-${CSS.escape(String(productId))} input`);
+    if (inp) inp.value = item.qtyCajas;
+    updateCart();
+    return;
+  }
+
   if (qty <= 0) {
     removeItem(productId);
     return;
@@ -4351,6 +4676,11 @@ function manualQty(productId, value) {
 }
 
 function removeItem(productId) {
+  // Sólo agregar (idea 4990). Cuello de botella de TODOS los caminos que sacan
+  // una línea (la ✕, el − hasta 0, escribir 0): el chequeo va acá también.
+  const min = editMinQty(productId);
+  if (min > 0) { avisoSoloAgregar(min); return; }
+
   const idx = cart.findIndex((i) => i.productId === productId);
   if (idx >= 0) cart.splice(idx, 1);
 
@@ -4467,6 +4797,11 @@ function updateCart() {
       const lineTotal = t.logged ? tuPrecioUnit * totalUni : 0;
 
       const pidAttr = String(item.productId).replace(/'/g, "\\'");
+      // Sólo agregar (idea 4990): si la línea ya venía en el pedido, no se baja de
+      // ahí. La ✕ desaparece y el − queda deshabilitado al llegar al piso. Fuera
+      // del modo edición `min` es 0 y todo queda como siempre.
+      const min = editMinQty(item.productId);
+      const enElPiso = min > 0 && totalCajas <= min;
 
       rows += `
         <tr>
@@ -4474,11 +4809,12 @@ function updateCart() {
           <td class="desc">${splitTwoWords(esc(p.description))}</td>
           <td>
             <div class="cart-step">
-              <button type="button" class="cart-step-btn" onclick="changeQty('${pidAttr}', -1)" aria-label="Restar una caja">−</button>
-              <input type="number" min="0" class="cart-step-input" value="${totalCajas}" onchange="manualQty('${pidAttr}', this.value)" aria-label="Cantidad de cajas" />
+              <button type="button" class="cart-step-btn" onclick="changeQty('${pidAttr}', -1)" aria-label="Restar una caja"${enElPiso ? ' disabled title="Ya está en el pedido: sólo se puede agregar"' : ""}>−</button>
+              <input type="number" min="${min || 0}" class="cart-step-input" value="${totalCajas}" onchange="manualQty('${pidAttr}', this.value)" aria-label="Cantidad de cajas" />
               <button type="button" class="cart-step-btn" onclick="changeQty('${pidAttr}', 1)" aria-label="Sumar una caja">+</button>
-              <button type="button" class="cart-step-remove" onclick="removeItem('${pidAttr}')" aria-label="Eliminar del pedido" title="Eliminar">✕</button>
+              ${min > 0 ? "" : `<button type="button" class="cart-step-remove" onclick="removeItem('${pidAttr}')" aria-label="Eliminar del pedido" title="Eliminar">✕</button>`}
             </div>
+            ${min > 0 ? `<div class="cart-min-hint">Ya en el pedido: ${min} — sólo se puede agregar</div>` : ""}
           </td>
           <td>${formatMoney(totalUni)}</td>
           <td>${t.logged ? "$" + formatMoney(tuPrecioUnit) + "<br><span class='cart-iva'>+ IVA</span>" : "—"}</td>
@@ -4541,8 +4877,10 @@ function updateCart() {
 
   const btn = $("submitOrderBtn");
   if (btn) {
-    const mustChooseDelivery = !deliveryChoice.slot;
-    const mustConfirmDelivery = !!deliveryChoice.slot && !deliveryConfirmed;
+    // Editando un pedido (idea 4990) la entrega y el pago ya están en el pedido:
+    // sólo hace falta que el carrito tenga algo.
+    const mustChooseDelivery = !editingOrderId && !deliveryChoice.slot;
+    const mustConfirmDelivery = !editingOrderId && !!deliveryChoice.slot && !deliveryConfirmed;
     const canConfirm =
       !!currentSession && cart.length > 0 && !mustChooseDelivery && !mustConfirmDelivery;
 
@@ -5013,6 +5351,27 @@ function showUpsellPopup(upsellProducts) {
   });
 }
 
+/* Ítems para el PDF/comprobante (misma cuenta que al crear el pedido). */
+function _buildPdfItems(itemsPayload) {
+  return itemsPayload.map(function(it) {
+    var unidades = Number(it.cajas || 0) * Number(it.uxb || 0);
+    var listUnit = Number(it.list_price || 0);
+    var tuPrecioUnit = (isAdmin && !hasVendorSelection())
+      ? listUnit
+      : listUnit * (1 - getDtoVol()) * (1 - WEB_ORDER_DISCOUNT);
+    return {
+      cod: it.cod_art,
+      description: it.description || "",
+      cajas: Number(it.cajas || 0),
+      unidades: unidades,
+      tu_precio_unit: tuPrecioUnit,
+      sub_total: tuPrecioUnit * unidades,
+      list_price_unit: listUnit,
+      list_sub_total: listUnit * unidades,
+    };
+  });
+}
+
 function setSubmitOrderLoading(isLoading, text = "") {
   const btn = $("submitOrderBtn");
   if (!btn) return;
@@ -5031,8 +5390,11 @@ function setSubmitOrderLoading(isLoading, text = "") {
 }
 
 async function submitOrder() {
-  // Upsell check — show popup before confirming
-  if (!window.__submittingOrder && !window.__upsellShown) {
+  // Snapshot del modo edición (idea 4990): si está seteado, este submit AGREGA
+  // al pedido existente en vez de crear uno nuevo.
+  var editOrderIdSnapshot = editingOrderId;
+  // Upsell check — show popup before confirming (no aplica editando un pedido)
+  if (!editOrderIdSnapshot && !window.__submittingOrder && !window.__upsellShown) {
     var upsellProducts = getUpsellProducts();
     if (upsellProducts.length > 0) {
       window.__upsellShown = true;
@@ -5083,7 +5445,12 @@ async function submitOrder() {
     const inactivosItems = [];
     cart.forEach((item) => {
       const p = products.find((x) => String(x.id) === String(item.productId));
-      if (!p) { inactivosItems.push(item.productId); return; }
+      if (!p) {
+        // Editando: una línea que ya estaba en el pedido y hoy no está en el
+        // catálogo queda como está (no se puede bajar igual); no bloquea.
+        if (editOrderIdSnapshot && editMinQty(item.productId) > 0) return;
+        inactivosItems.push(item.productId); return;
+      }
       const badge = String(p.badge_status || "").trim().toUpperCase();
       if (badge === "SIN STOCK") sinStockItems.push(p.cod || p.description);
       else if (badge === "PROXIMAMENTE" || badge === "PRÓXIMAMENTE") proximamenteItems.push(p.cod || p.description);
@@ -5102,23 +5469,75 @@ async function submitOrder() {
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
     }
 
-    if (!deliveryChoice?.slot) {
+    if (!editOrderIdSnapshot && !deliveryChoice?.slot) {
       setOrderStatus("Debés seleccionar una sucursal de entrega.", "err");
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
     }
 
-    if (!deliveryConfirmed) {
+    if (!editOrderIdSnapshot && !deliveryConfirmed) {
       setOrderStatus('Debés apretar "Confirmar" en Dirección de Entrega antes de confirmar el pedido.', "err");
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
     }
 
     const paySel = document.getElementById("paymentSelect");
-    if (!(isAdmin && !hasVendorSelection()) && (!paySel || !String(paySel.value || "").trim())) {
+    if (!editOrderIdSnapshot && !(isAdmin && !hasVendorSelection()) && (!paySel || !String(paySel.value || "").trim())) {
       setOrderStatus("Debés seleccionar un método de pago.", "err");
       window.__submittingOrder = false; setSubmitOrderLoading(false); return;
     }
 
     const t = calcTotals();
+
+    // ── MODO EDICIÓN (idea 4990): agregar al pedido existente y salir ────────
+    if (editOrderIdSnapshot) {
+      const itemsEdit = _buildItemsPayload(editOrderIdSnapshot);
+      let edited;
+      try {
+        edited = await _editOrderChef(editOrderIdSnapshot, itemsEdit);
+      } catch (e) {
+        console.error("[ORDER] edit error:", e);
+        setOrderStatus("No se pudo actualizar el pedido: " + (e.message || String(e)), "err");
+        return;
+      }
+      const pdfItemsEdit = _buildPdfItems(itemsEdit);
+      lastConfirmedOrder = {
+        orderId: edited.orderId,
+        customerName: customerProfile?.business_name || "",
+        codCliente: customerProfile?.cod_cliente || "",
+        sucursalEntrega: edited.sucursal,
+        metodoPago: edited.metodoPago,
+        subtotal: Number(edited.subtotal || 0),
+        listSubtotal: pdfItemsEdit.reduce(function (acc, it) { return acc + Number(it.list_sub_total || 0); }, 0),
+        descuentos: Math.max(0, pdfItemsEdit.reduce(function (acc, it) { return acc + Number(it.list_sub_total || 0); }, 0) - Number(edited.total || 0)),
+        total: Number(edited.total || 0),
+        items: pdfItemsEdit,
+        paymentDiscount: Number(edited.paymentDiscount || 0),
+        webDiscount: Number(edited.webDiscount || 0),
+        dtoVol: Number(getDtoVol() || 0),
+      };
+      cart.length = 0;
+      saveCartToLS();
+      setEditingOrderId(null);
+      setEditBanner(null);
+      setOrderStatus("");
+      updateCart();
+      renderProducts();
+      refreshSubmitEnabled();
+      showSection("pedidoConfirmado");
+      playSuccessAnimation();
+      try {
+        var _onEd = document.getElementById("successOrderNum");
+        if (_onEd) {
+          _onEd.textContent = "Pedido N° " + edited.orderId + " actualizado · " +
+            edited.lineas + (edited.lineas === 1 ? " línea agregada" : " líneas agregadas") +
+            " (" + edited.cajas + (edited.cajas === 1 ? " caja)" : " cajas)");
+          _onEd.style.display = "";
+        }
+      } catch (e) {}
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      // No se re-manda al proxy de Sheets ni al de Entregas: el mail de las 12:30
+      // lee sheets_payload, que ya quedó actualizado.
+      return;
+    }
 
     const orderPayload = {
       auth_user_id: currentSession.user.id,
@@ -5157,28 +5576,7 @@ async function submitOrder() {
 
     const orderId = orderRow.id;
 
-    const itemsPayload = cart
-      .map((item) => {
-        const p = products.find((x) => String(x.id) === String(item.productId));
-        if (!p) return null;
-
-        const qtyCajas = Number(item.qtyCajas || 0);
-        const uxb = Number(p.uxb || 0);
-        const totalUni = qtyCajas * uxb;
-
-        return {
-          order_id: orderId,
-          product_id: p.id,
-          cod_art: String(p.cod || "").trim(),
-          cajas: qtyCajas,
-          uxb,
-          unidades: totalUni,
-          unit_price: Number(unitYourPrice(p.list_price) || 0),
-          list_price: Number(p.list_price || 0),
-          description: String(p.description || ""),
-        };
-      })
-      .filter(Boolean);
+    const itemsPayload = _buildItemsPayload(orderId);
 
     const itemsForDb = itemsPayload.map((it) => ({
       order_id: it.order_id,
@@ -5202,23 +5600,7 @@ async function submitOrder() {
     }
 
     // ---- Guardar datos para PDF ----
-    var _pdfItems = itemsPayload.map(function(it) {
-      var unidades = Number(it.cajas || 0) * Number(it.uxb || 0);
-      var listUnit = Number(it.list_price || 0);
-      var tuPrecioUnit = (isAdmin && !hasVendorSelection())
-        ? listUnit
-        : listUnit * (1 - getDtoVol()) * (1 - WEB_ORDER_DISCOUNT);
-      return {
-        cod: it.cod_art,
-        description: it.description || "",
-        cajas: Number(it.cajas || 0),
-        unidades: unidades,
-        tu_precio_unit: tuPrecioUnit,
-        sub_total: tuPrecioUnit * unidades,
-        list_price_unit: listUnit,
-        list_sub_total: listUnit * unidades,
-      };
-    });
+    var _pdfItems = _buildPdfItems(itemsPayload);
     var _listSubtotal = _pdfItems.reduce(function(acc, it) {
       return acc + Number(it.list_sub_total || 0);
     }, 0);
@@ -5408,6 +5790,13 @@ async function submitOrder() {
 function refreshSubmitEnabled() {
   const btn = document.getElementById("submitOrderBtn");
   if (!btn) return;
+
+  // Editando un pedido (idea 4990): entrega y pago ya están; sólo el carrito.
+  if (editingOrderId) {
+    btn.disabled = !cart.length;
+    btn.classList.toggle("is-disabled", btn.disabled);
+    return;
+  }
 
   const shipSel = document.getElementById("shippingSelect");
   const paySel = document.getElementById("paymentSelect");
@@ -8947,6 +9336,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.removeItem = removeItem;
   window.updateCart = updateCart;
   window.submitOrder = submitOrder;
+  window.cancelEdit = cancelEdit;
+  if (editingOrderId) setEditBanner(editingOrderId);
   window.openProfile = openProfile;
   window.volverMayorista = volverMayorista;
   window.descargarPedidoPDF = descargarPedidoPDF;

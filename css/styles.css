@@ -12317,3 +12317,66 @@ body.is-scrolled .logo-img {
   margin-top: 14px; background: #fff; color: #111; border: none;
   border-radius: 9px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer;
 }
+
+/* =========================================================================
+   Editar pedido — sólo agregar (idea 4990, 2026-09-05; espejo de LK)
+   ========================================================================= */
+.hist-edit-wrap {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hist-edit-link {
+  appearance: none;
+  border: 1px solid #e6c34d;
+  background: #fff8e6;
+  color: #8a6608;
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 0.2s ease;
+}
+.hist-edit-link:hover { background: #fdeec1; }
+.hist-edit-hint {
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+  max-width: 190px;
+  line-height: 1.3;
+}
+/* Cartel "Estás editando…" debajo de Confirmar pedido */
+#carrito #editOrderBanner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff4d6;
+  border: 1px solid #e6c34d;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  text-align: center;
+  line-height: 1.3;
+}
+#carrito #editOrderBanner #cancelEditBtn {
+  min-width: 0;
+  height: auto;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+.cart-min-hint {
+  font-size: 11px;
+  color: #8a6608;
+  margin-top: 4px;
+}
