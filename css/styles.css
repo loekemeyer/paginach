@@ -12387,3 +12387,5 @@ body.is-scrolled .logo-img {
 /* Editando un pedido: Entrega y Método de pago ya están en el pedido → no se muestran */
 body.chef-editing #carrito .cart-col-left .ship-row { display: none !important; }
 .cart-min-hint { white-space: nowrap; }
+/* Editando un pedido tampoco tiene sentido "Guardar pedido sin enviar" (guardaría el pedido como borrador) */
+body.chef-editing #carrito .section-header .order-actions-top { display: none !important; }
