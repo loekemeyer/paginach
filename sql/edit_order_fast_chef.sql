@@ -2,14 +2,15 @@
 -- edit_order_fast_chef.sql — candado SERVER para "Editar pedido: sólo agregar"
 -- Proyecto Supabase de CHEF (nkhzocgdpwtgrmwleihr) · idea 4990 · 2026-09-05
 -- =============================================================================
--- ⚠ ESTE ARCHIVO NO SE APLICÓ TODAVÍA. Lo corre el dueño en el SQL editor del
---   proyecto Chef (desde Gestión Virgilio no hay acceso a ese proyecto).
+-- ✅ APLICADO por el dueño en el SQL editor del proyecto Chef el 2026-09-05 (desde
+--   Gestión Virgilio no hay acceso a ese proyecto). Desde la v2.0.30 de la página
+--   `_editOrderChef()` llama a esta RPC; el insert/update directo de la v2.0.29
+--   quedó atrás.
 --
--- QUÉ HAY HOY (v2.0.29 de la página): el módulo "Editar pedido" del front
--- INSERTA sólo las líneas nuevas en order_items y actualiza orders (subtotal,
--- total, sheets_payload). El candado "sólo agregar" es de UI + chequeo en el
--- front. Alcanza para el cliente normal, pero cualquiera que llame la REST a
--- mano puede borrar filas (la policy de delete de order_items existe: la usa
+-- ANTES (v2.0.29): el front INSERTABA sólo las líneas nuevas en order_items y
+-- actualizaba orders (subtotal, total, sheets_payload), con el candado "sólo
+-- agregar" de UI + chequeo en el front. Cualquiera que llamara la REST a mano
+-- podía borrar filas (la policy de delete de order_items existe: la usa
 -- rollbackOrder cuando falla la carga de un pedido nuevo).
 --
 -- QUÉ HACE ESTE ARCHIVO: la misma regla que en LK, en el server.
@@ -24,10 +25,11 @@
 --      policy de delete cerrada, ese rollback dejaría un pedido a medias.
 --      Alternativa: policy de delete sólo si el pedido tiene < 10 minutos.
 --
--- CUANDO ESTÉ APLICADO: en script.js, _editOrderChef() pasa a llamar
+-- EL FRONT (script.js, _editOrderChef) llama:
 --   supabaseClient.rpc("edit_order_fast", { p_order_id, p_auth_user_id,
 --   p_customer_id, p_items: [{product_id, cajas, uxb, unit_your_price,
---   unit_list_price, cod_art}] }) y se saca el insert/update directo.
+--   unit_list_price, cod_art}] })   ← el carrito COMPLETO, no el delta.
+--   Devuelve {order_id, lineas, subtotal, total}. Test: tests/editar-pedido.cjs.
 --
 -- ROLLBACK: drop function public.edit_order_fast(bigint, uuid, uuid, jsonb);
 -- =============================================================================

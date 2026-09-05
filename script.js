@@ -1526,10 +1526,9 @@ ${
  *    de order_items → la edición REESCRIBE sheets_payload con la lista
  *    completa. Sin eso la edición no le llega a nadie.
  *  · Ventana: hasta que el pedido sale a compras (enviado_a_compras_at).
- *  · El candado "sólo agregar" acá es de UI + chequeo en el front antes de
- *    escribir. El de verdad (RPC edit_order_fast + policies) está escrito en
- *    sql/edit_order_fast_chef.sql para correr en el proyecto Supabase de Chef;
- *    cuando esté, _editOrderChef pasa a llamar la RPC.
+ *  · El candado "sólo agregar" de verdad está en el SERVER: RPC edit_order_fast
+ *    (sql/edit_order_fast_chef.sql, corrida en Chef el 2026-09-05). Lo de acá
+ *    (piso, − y ✕ bloqueados) es la mitad de UX: que el cliente lo vea antes.
  * ===================================================================== */
 let editingOrderId = null;
 let editBaseQty = {};   // { productId: cajas que ya tenía el pedido } = el piso de cada línea
@@ -1673,122 +1672,58 @@ function _buildItemsPayload(orderId) {
     .filter(Boolean);
 }
 
-/* AGREGAR al pedido existente. Devuelve { orderId, subtotal, total, lineas, cajas,
-   sucursal, metodoPago, paymentDiscount, webDiscount }. Tira Error con el
-   motivo si no se puede. */
+/* AGREGAR al pedido existente vía la RPC `edit_order_fast` (corrida en el proyecto
+   Chef el 2026-09-05, sql/edit_order_fast_chef.sql). El candado es del SERVER: la RPC
+   valida dueño, ventana (enviado_a_compras_at) y "sólo agregar", inserta el delta en
+   order_items, actualiza la cabecera y reescribe sheets_payload.items. Acá sólo se
+   arma el carrito completo y se lee la cabecera después para el comprobante.
+   Devuelve { orderId, subtotal, total, lineas, sucursal, metodoPago, paymentDiscount,
+   webDiscount }. Tira Error con el motivo si no se puede. */
 async function _editOrderChef(orderId, itemsPayload) {
-  // 1. La cabecera, fresca: candado de las 12:30, dueño, descuentos y payload viejo.
-  const head = await withTimeout(
-    supabaseClient
+  const rpcItems = itemsPayload.map((it) => ({
+    product_id: it.product_id,
+    cajas: it.cajas,
+    uxb: it.uxb,
+    unit_your_price: it.unit_price,
+    unit_list_price: it.list_price,
+    cod_art: it.cod_art,
+  }));
+  const res = await withTimeout(
+    supabaseClient.rpc("edit_order_fast", {
+      p_order_id: Number(orderId),
+      p_auth_user_id: currentSession.user.id,
+      p_customer_id: customerProfile.id,
+      p_items: rpcItems,
+    }),
+    30000,
+    "edit_order_fast",
+  );
+  if (res.error) {
+    throw new Error(res.error.message || res.error.details || res.error.hint || "RPC falló");
+  }
+  const d = res.data || {};
+
+  // La cabecera, ya actualizada, para el comprobante.
+  let o = {};
+  try {
+    const head = await supabaseClient
       .from("orders")
-      .select("id, customer_id, enviado_a_compras_at, sheets_payload, payment_method, payment_discount, web_discount, subtotal, total")
+      .select("payment_method, payment_discount, web_discount, sheets_payload")
       .eq("id", orderId)
-      .single(),
-    30000,
-    "Supabase select orders",
-  );
-  if (head.error || !head.data) throw new Error(head.error?.message || "Pedido inexistente");
-  const o = head.data;
-  if (String(o.customer_id) !== String(customerProfile?.id)) {
-    throw new Error("El pedido no es de esta razón social.");
-  }
-  if (o.enviado_a_compras_at) {
-    throw new Error("El pedido ya salió a compras (12:30 hs): ya no se puede modificar.");
-  }
-
-  // 2. Lo que ya tiene, sumado por producto.
-  const cur = await withTimeout(
-    supabaseClient.from("order_items").select("product_id, cajas").eq("order_id", orderId),
-    30000,
-    "Supabase select order_items",
-  );
-  if (cur.error) throw new Error(cur.error.message);
-  const tenia = {};
-  (cur.data || []).forEach((r) => {
-    if (!r.product_id) return;
-    tenia[String(r.product_id)] = (tenia[String(r.product_id)] || 0) + Number(r.cajas || 0);
-  });
-
-  // 3. Sólo agregar: nada baja, nada desaparece. Lo que no está en el catálogo
-  //    (producto dado de baja) queda como estaba.
-  const ahora = {};
-  cart.forEach((it) => { ahora[String(it.productId)] = (ahora[String(it.productId)] || 0) + Number(it.qtyCajas || 0); });
-  const bajan = Object.keys(tenia).filter((pid) => (ahora[pid] || 0) < tenia[pid]);
-  if (bajan.length) {
-    throw new Error("A un pedido ya mandado sólo se le puede AGREGAR: no se pueden quitar productos ni bajar cantidades. Si necesitás sacar algo, escribinos.");
-  }
-
-  // 4. El delta → filas NUEVAS en order_items (nunca se toca una fila existente).
-  const nuevas = [];
-  const deltaPorCod = [];
-  let subtotalMas = 0;
-  itemsPayload.forEach((it) => {
-    const d = Number(it.cajas || 0) - (tenia[String(it.product_id)] || 0);
-    if (d <= 0) return;
-    nuevas.push({
-      order_id: orderId,
-      product_id: it.product_id,
-      cajas: d,
-      uxb: it.uxb,
-      unit_your_price: it.unit_price,
-      unit_list_price: it.list_price,
-    });
-    deltaPorCod.push({ cod_art: it.cod_art, cajas: d, uxb: it.uxb });
-    subtotalMas += Number(it.unit_price || 0) * d * Number(it.uxb || 0);
-  });
-  if (!nuevas.length) throw new Error("No agregaste nada nuevo al pedido.");
-
-  const resItems = await withTimeout(
-    supabaseClient.from("order_items").insert(nuevas),
-    60000,
-    "Supabase insert order_items (edición)",
-  );
-  if (resItems.error) throw new Error(resItems.error.message || JSON.stringify(resItems.error));
-
-  // 5. Cabecera + sheets_payload (lo que leen Gestión Virgilio y el mail de las 12:30).
-  //    Los ítems viejos quedan tal cual; el delta se suma a la línea del mismo
-  //    código si existe, si no se agrega al final.
-  const payOld = (o.sheets_payload && typeof o.sheets_payload === "object") ? o.sheets_payload : {};
-  const items = Array.isArray(payOld.items) ? payOld.items.map((x) => Object.assign({}, x)) : [];
-  deltaPorCod.forEach((d) => {
-    const k = String(d.cod_art || "").trim().toUpperCase();
-    const ex = items.find((x) => String(x.cod_art || "").trim().toUpperCase() === k);
-    if (ex) ex.cajas = Number(ex.cajas || 0) + d.cajas;
-    else items.push({ cod_art: d.cod_art, cajas: d.cajas, uxb: d.uxb });
-  });
-  const web = Number(o.web_discount || 0);
-  const pago = Number(o.payment_discount || 0);
-  const subtotal = Number(o.subtotal || 0) + subtotalMas;
-  const total = subtotal * (1 - web) * (1 - pago);
-  const payNew = Object.assign({}, payOld, {
-    items: items,
-    order_total: Number(total || 0),
-    editado_at: new Date().toISOString(),
-  });
-  const resHead = await withTimeout(
-    supabaseClient
-      .from("orders")
-      .update({ subtotal: subtotal, total: total, sheets_payload: payNew })
-      .eq("id", orderId),
-    60000,
-    "Supabase update orders (edición)",
-  );
-  if (resHead.error) {
-    // Las líneas ya entraron en order_items; que quede registrado por qué el payload no.
-    console.error("[ORDER] edit: order_items OK pero falló la cabecera:", resHead.error);
-    throw new Error("Se agregaron las líneas pero no se pudo actualizar el total del pedido: " + (resHead.error.message || ""));
-  }
+      .single();
+    o = head.data || {};
+  } catch (e) { console.warn("edit: no se pudo releer la cabecera:", e); }
+  const pay = (o.sheets_payload && typeof o.sheets_payload === "object") ? o.sheets_payload : {};
 
   return {
     orderId: orderId,
-    subtotal: subtotal,
-    total: total,
-    lineas: nuevas.length,
-    cajas: nuevas.reduce((a, x) => a + Number(x.cajas || 0), 0),
-    sucursal: String(payOld.sucursalEntrega || payOld.sucursal_entrega || ""),
-    metodoPago: String(o.payment_method || payOld.condicionPago || ""),
-    paymentDiscount: pago,
-    webDiscount: web,
+    subtotal: Number(d.subtotal || 0),
+    total: Number(d.total || 0),
+    lineas: Number(d.lineas || 0),
+    sucursal: String(pay.sucursalEntrega || pay.sucursal_entrega || ""),
+    metodoPago: String(o.payment_method || pay.condicionPago || ""),
+    paymentDiscount: Number(o.payment_discount || 0),
+    webDiscount: Number(o.web_discount || 0),
   };
 }
 
@@ -5528,8 +5463,7 @@ async function submitOrder() {
         var _onEd = document.getElementById("successOrderNum");
         if (_onEd) {
           _onEd.textContent = "Pedido N° " + edited.orderId + " actualizado · " +
-            edited.lineas + (edited.lineas === 1 ? " línea agregada" : " líneas agregadas") +
-            " (" + edited.cajas + (edited.cajas === 1 ? " caja)" : " cajas)");
+            edited.lineas + (edited.lineas === 1 ? " línea agregada" : " líneas agregadas");
           _onEd.style.display = "";
         }
       } catch (e) {}

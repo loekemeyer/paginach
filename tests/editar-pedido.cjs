@@ -1,8 +1,8 @@
 /* Regresión — "Editar pedido: sólo agregar" (idea 4990, 2026-09-05).
    Corre mayorista.html headless con supabase-js STUBEADO (sin red): un cliente logueado con dos
    pedidos (55 editable, 56 ya enviado a compras). Verifica el botón Editar, el piso por línea
-   (−/✕/cantidad a mano bloqueados), y que confirmar en modo edición INSERTA sólo el delta en
-   order_items, actualiza orders y reescribe sheets_payload.items — sin crear un pedido nuevo.
+   (−/✕/cantidad a mano bloqueados), y que confirmar en modo edición llama a la RPC edit_order_fast
+   (espejada en memoria: delta en order_items, cabecera, sheets_payload.items) — sin crear un pedido nuevo.
    Uso: PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node tests/editar-pedido.cjs */
 const path = require("path");
 let chromium;
@@ -57,7 +57,31 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     }
     window.__fake = {
       tables, calls, from: builder,
-      rpc: () => Promise.resolve({ data: [], error: null }),
+      rpc: (name, args) => {
+        calls.push({ table: "rpc:" + name, op: "rpc", payload: JSON.parse(JSON.stringify(args || {})) });
+        if (name !== "edit_order_fast") return Promise.resolve({ data: [], error: null });
+        // Espejo en memoria de sql/edit_order_fast_chef.sql
+        const o = tables.orders.find((x) => String(x.id) === String(args.p_order_id));
+        if (!o) return Promise.resolve({ data: null, error: { message: "Pedido inexistente" } });
+        if (String(o.customer_id) !== String(args.p_customer_id)) return Promise.resolve({ data: null, error: { message: "Unauthorized: order does not belong to customer" } });
+        if (o.enviado_a_compras_at) return Promise.resolve({ data: null, error: { message: "Pedido ya enviado a compras: no editable" } });
+        const viejo = {}; tables.order_items.filter((r) => String(r.order_id) === String(o.id)).forEach((r) => { viejo[r.product_id] = (viejo[r.product_id] || 0) + r.cajas; });
+        const nuevo = {}; (args.p_items || []).forEach((i) => { nuevo[i.product_id] = (nuevo[i.product_id] || 0) + i.cajas; });
+        const bajan = Object.keys(viejo).filter((pid) => (nuevo[pid] || 0) < viejo[pid]);
+        if (bajan.length) return Promise.resolve({ data: null, error: { message: "Al pedido sólo se le puede AGREGAR: no se pueden quitar productos ni bajar cantidades (" + bajan.join(", ") + ")." } });
+        let lineas = 0, mas = 0; const items = (o.sheets_payload.items || []).map((x) => Object.assign({}, x));
+        (args.p_items || []).forEach((i) => {
+          const d = i.cajas - (viejo[i.product_id] || 0); if (d <= 0) return;
+          tables.order_items.push({ id: 1000 + tables.order_items.length, order_id: o.id, product_id: i.product_id, cajas: d, uxb: i.uxb, unit_your_price: i.unit_your_price, unit_list_price: i.unit_list_price });
+          lineas++; mas += i.unit_your_price * d * i.uxb;
+          const ex = items.find((x) => String(x.cod_art).toUpperCase() === String(i.cod_art).toUpperCase());
+          if (ex) ex.cajas += d; else items.push({ cod_art: i.cod_art, cajas: d, uxb: i.uxb });
+        });
+        if (!lineas) return Promise.resolve({ data: null, error: { message: "No agregaste nada nuevo al pedido." } });
+        o.subtotal = (o.subtotal || 0) + mas; o.total = o.subtotal * (1 - (o.web_discount || 0)) * (1 - (o.payment_discount || 0));
+        o.sheets_payload = Object.assign({}, o.sheets_payload, { items, order_total: o.total, editado_at: "2026-09-05T20:00:00Z" });
+        return Promise.resolve({ data: { order_id: o.id, lineas, subtotal: o.subtotal, total: o.total }, error: null });
+      },
       auth: { getSession: async () => ({ data: { session: null } }), getUser: async () => ({ data: { user: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }), signOut: async () => ({}) },
       channel: () => { const c = { on() { return c; }, subscribe() { return c; }, unsubscribe() {} }; return c; },
       removeChannel() {}, functions: { invoke: async () => ({ data: null, error: null }) },
@@ -120,11 +144,13 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     await submitOrder();
     const nuevas = F.calls.slice(callsAntes);
     out.sinPedidoNuevo = !nuevas.some((c) => c.table === "orders" && c.op === "insert");
-    const ins = nuevas.filter((c) => c.table === "order_items" && c.op === "insert");
-    const filas = ins.length === 1 ? ins[0].payload : [];
+    const rpcCalls = nuevas.filter((c) => c.table === "rpc:edit_order_fast");
+    out.llamaRpc = rpcCalls.length === 1 && rpcCalls[0].payload.p_order_id === 55 && rpcCalls[0].payload.p_customer_id === "c1"
+      && rpcCalls[0].payload.p_items.length === 2 && !nuevas.some((c) => c.table === "order_items" && c.op === "insert");
+    const filas = F.tables.order_items.filter((r) => r.order_id === 55 && r.id >= 1000);
     const uyp1 = unitYourPrice(100), uyp2 = unitYourPrice(200);
     out.deltaInsertado = filas.length === 2
-      && filas.some((f) => f.product_id === "p1" && f.cajas === 1 && f.uxb === 10 && f.order_id === "55" && f.unit_your_price === uyp1)
+      && filas.some((f) => f.product_id === "p1" && f.cajas === 1 && f.uxb === 10 && f.unit_your_price === uyp1)
       && filas.some((f) => f.product_id === "p2" && f.cajas === 1 && f.uxb === 5 && f.unit_your_price === uyp2);
     const o55 = F.tables.orders.find((o) => o.id === 55);
     const esperadoSub = 2000 + uyp1 * 1 * 10 + uyp2 * 1 * 5;
@@ -134,13 +160,13 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
       && o55.sheets_payload.sucursalEntrega === "Sucursal X" && Math.abs(o55.sheets_payload.order_total - o55.total) < 0.01 && !!o55.sheets_payload.editado_at;
     out.salioDelModo = editingOrderId === null && cart.length === 0 && !document.getElementById("editOrderBanner");
     out.confirmacion = document.getElementById("pedidoConfirmado").classList.contains("active")
-      && /Pedido N° 55 actualizado · 2 líneas agregadas \(2 cajas\)/.test(document.getElementById("successOrderNum").textContent);
+      && /Pedido N° 55 actualizado · 2 líneas agregadas/.test(document.getElementById("successOrderNum").textContent);
 
     // 5. El 56 ya salió a compras: no se puede
     setEditingOrderId("56", { p1: 1 }); cart.length = 0; cart.push({ productId: "p1", qtyCajas: 2 }); updateCart();
     const antes56 = F.tables.order_items.length;
     await submitOrder();
-    out.bloquea56 = /ya salió a compras/.test(document.getElementById("orderStatus").textContent) && F.tables.order_items.length === antes56 && editingOrderId === "56";
+    out.bloquea56 = /enviado a compras/.test(document.getElementById("orderStatus").textContent) && F.tables.order_items.length === antes56 && editingOrderId === "56";
     // 6. Sin cambios → aviso, sin escribir
     setEditingOrderId("55", { p1: 3, p2: 1 }); cart.length = 0; cart.push({ productId: "p1", qtyCajas: 3 }, { productId: "p2", qtyCajas: 1 }); updateCart();
     await submitOrder();
@@ -159,7 +185,8 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     ["sí se sube y lo nuevo se puede sacar", r.sube && r.sacaNuevo],
     ["Confirmar habilitado sin elegir entrega ni pago", r.confirmarHabilitado],
     ["confirmar NO crea un pedido nuevo", r.sinPedidoNuevo],
-    ["inserta sólo el delta en order_items (2 filas)", r.deltaInsertado],
+    ["confirmar llama a la RPC edit_order_fast con el carrito completo (sin insert directo)", r.llamaRpc],
+    ["la RPC deja sólo el delta en order_items (2 filas)", r.deltaInsertado],
     ["actualiza subtotal/total con los descuentos del pedido", r.cabecera],
     ["reescribe sheets_payload.items (101→3, 102 nuevo) + order_total", r.payload],
     ["sale del modo edición y vacía el carrito", r.salioDelModo],
