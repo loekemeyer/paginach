@@ -1394,14 +1394,48 @@ async function loadMyOrdersUI() {
       }
     }
 
+    // Ideas 8743 + 4990 (2026-09-05) — estado REAL del pedido en Gestión Virgilio
+    // (programado, en preparación, facturado, entregado) por la RPC gv_estado_mis_pedidos
+    // (FDW a la vista gv_pedido_web_estado_pagina de Virgilio; sql/gv_estado_mis_pedidos_chef.sql).
+    // Cuando existe, manda sobre order_tracking. Si la RPC no está o falla, el tracking
+    // de siempre queda igual (espejo de LK v2.3.301).
+    const gvByOrder = {};
+    if (orderIds.length) {
+      try {
+        const { data: gv } = await supabaseClient.rpc("gv_estado_mis_pedidos", { p_ids: orderIds });
+        (gv || []).forEach((g) => (gvByOrder[String(g.order_id)] = g));
+      } catch (e) {
+        console.warn("[orders] no se pudo leer el estado de Gestión:", e);
+      }
+    }
+
+    // Etapa (0..3) y label de un pedido:
+    //  0 Recibido   — sin estado en Gestión ni fila en order_tracking
+    //  1 Programado / En preparación — programado, en picking o en armado en Gestión
+    //  2 Facturado  — facturado en Gestión (ya no se puede modificar)
+    //  3 Entregado  — control de remito en Gestión, o status "entregado" del tracking
     function getOrderStage(orderId) {
+      const g = gvByOrder[String(orderId)];
+      if (g) {
+        const f = g.fecha_entrega
+          ? new Date(String(g.fecha_entrega).slice(0, 10) + "T12:00:00").toLocaleDateString("es-AR")
+          : "";
+        if (g.entregado) {
+          const fe = g.entregado_at ? new Date(g.entregado_at).toLocaleDateString("es-AR") : f;
+          return { stage: 3, label: "Entregado", subtitle: fe ? "el " + fe : "" };
+        }
+        if (g.facturado) return { stage: 2, label: "Facturado", subtitle: "ya no se puede modificar" };
+        if (g.estado === "sin_programar") return { stage: 0, label: "Recibido", subtitle: "" };
+        if (g.estado === "programado") return { stage: 1, label: "Programado", subtitle: f ? "para " + f : "" };
+        return { stage: 1, label: "En preparación", subtitle: f ? "sale el " + f : "" };
+      }
       const t = trackByNp[String(orderId)];
       if (!t) return { stage: 0, label: "Recibido", subtitle: "" };
       const fechaStr = t.fecha_entrega
         ? new Date(t.fecha_entrega).toLocaleDateString("es-AR")
         : "";
       if (t.status === "entregado") {
-        return { stage: 2, label: "Entregado", subtitle: fechaStr ? "el " + fechaStr : "" };
+        return { stage: 3, label: "Entregado", subtitle: fechaStr ? "el " + fechaStr : "" };
       }
       if (t.status === "programado") {
         return { stage: 1, label: "Programado", subtitle: fechaStr ? "para " + fechaStr : "" };
@@ -1411,14 +1445,14 @@ async function loadMyOrdersUI() {
 
     function renderStepper(st) {
       const parts = [];
-      for (let i = 0; i <= 2; i++) {
+      for (let i = 0; i <= 3; i++) {
         if (i > 0) {
           parts.push('<span class="o-line ' + (i <= st.stage ? "done" : "") + '"></span>');
         }
         parts.push(
           '<span class="o-dot ' + (i <= st.stage ? "done" : "") +
             (i === st.stage ? " current" : "") + '" title="' +
-            ["Recibido", "Programado", "Entregado"][i] + '"></span>'
+            ["Recibido", "Programado", "Facturado", "Entregado"][i] + '"></span>'
         );
       }
       return '<div class="o-stepper">' + parts.join("") + "</div>";
@@ -1455,12 +1489,16 @@ async function loadMyOrdersUI() {
           Repetir Pedido
         </button>
 ${
-  isOrderEditable(order)
+  isOrderEditable(order, gvByOrder[String(order.id)])
     ? `        <div class="hist-edit-wrap">
           <span class="hist-edit-hint">Pod&eacute;s agregar art&iacute;culos hasta las 12:30 hs.</span>
           <button class="hist-edit-link" data-edit="${esc(order.id)}">&#9998; Editar pedido</button>
         </div>`
-    : ""
+    : (gvByOrder[String(order.id)] && (gvByOrder[String(order.id)].facturado || gvByOrder[String(order.id)].entregado)
+        ? `        <div class="hist-edit-wrap">
+          <span class="hist-edit-hint">Pedido ${gvByOrder[String(order.id)].entregado ? "entregado" : "facturado"}: ya no se puede modificar.</span>
+        </div>`
+        : "")
 }
       </div>
     </div>
@@ -1567,9 +1605,13 @@ function avisoSoloAgregar(min) {
   } catch (e) {}
 }
 
-// Editable mientras NO haya salido a compras (el mail de las 12:30 de Chef).
-function isOrderEditable(order) {
-  return !!order && !order.enviado_a_compras_at;
+// Editable mientras NO haya salido a compras (el mail de las 12:30 de Chef) y NO esté
+// facturado ni entregado en Gestión Virgilio (idea 8743). Es sólo UI: la RPC
+// edit_order_fast vuelve a validar las dos cosas en el server.
+function isOrderEditable(order, gv) {
+  if (!order || order.enviado_a_compras_at) return false;
+  if (gv && (gv.facturado || gv.entregado)) return false;
+  return true;
 }
 
 async function editOrder(orderId) {

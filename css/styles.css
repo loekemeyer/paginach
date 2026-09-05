@@ -6539,6 +6539,7 @@ body {
 .o-stage-0 { color: #888; }
 .o-stage-1 { color: #b07d00; }
 .o-stage-2 { color: #2e7d32; }
+.o-stage-3 { color: #1b5e20; }   /* Entregado (idea 8743): 4 etapas desde v2.0.31 */
 .o-stage-sub {
   color: #666;
   font-size: 13px;
@@ -6785,6 +6786,7 @@ body {
 .notif-stage-label.o-stage-0 { color: #888; }
 .notif-stage-label.o-stage-1 { color: #b07d00; }
 .notif-stage-label.o-stage-2 { color: #2e7d32; }
+.notif-stage-label.o-stage-3 { color: #1b5e20; }
 
 .notif-stage-sub {
   font-size: 10.5px;

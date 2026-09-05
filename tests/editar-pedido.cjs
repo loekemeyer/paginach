@@ -24,12 +24,19 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
           sheets_payload: { orderNumber: 55, codCliente: "9", sucursalEntrega: "Sucursal X", order_total: 1862, items: [{ cod_art: "101", cajas: 2, uxb: 10 }] } },
         { id: 56, created_at: "2026-09-04T10:00:00Z", total: 500, subtotal: 500, customer_id: "c1", enviado_a_compras_at: "2026-09-04T15:30:00Z",
           payment_method: "Contado", payment_discount: 0, web_discount: 0, sheets_payload: { items: [{ cod_art: "101", cajas: 1, uxb: 10 }] } },
+        { id: 57, created_at: "2026-09-03T10:00:00Z", total: 500, subtotal: 500, customer_id: "c1", enviado_a_compras_at: null,
+          payment_method: "Contado", payment_discount: 0, web_discount: 0, sheets_payload: { items: [{ cod_art: "101", cajas: 1, uxb: 10 }] } },
       ],
       order_items: [
         { id: 1, order_id: 55, product_id: "p1", cajas: 2, uxb: 10 },
         { id: 2, order_id: 56, product_id: "p1", cajas: 1, uxb: 10 },
       ],
       order_tracking: [],
+      // Estado en Gestión Virgilio (lo que devolvería gv_estado_mis_pedidos): 55 programado, 57 facturado
+      gv_estado: [
+        { order_id: 55, estado: "programado", rango: 2, bloques: 1, fecha_entrega: "2026-09-08", tanda: "E01A", facturado: false, entregado: false },
+        { order_id: 57, estado: "facturado", rango: 7, bloques: 1, fecha_entrega: "2026-09-04", tanda: "D70A", facturado: true, entregado: false },
+      ],
     };
     const calls = [];
     function builder(table) {
@@ -59,12 +66,14 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
       tables, calls, from: builder,
       rpc: (name, args) => {
         calls.push({ table: "rpc:" + name, op: "rpc", payload: JSON.parse(JSON.stringify(args || {})) });
+        if (name === "gv_estado_mis_pedidos") return Promise.resolve({ data: tables.gv_estado.filter((g) => (args.p_ids || []).map(String).includes(String(g.order_id))), error: null });
         if (name !== "edit_order_fast") return Promise.resolve({ data: [], error: null });
         // Espejo en memoria de sql/edit_order_fast_chef.sql
         const o = tables.orders.find((x) => String(x.id) === String(args.p_order_id));
         if (!o) return Promise.resolve({ data: null, error: { message: "Pedido inexistente" } });
         if (String(o.customer_id) !== String(args.p_customer_id)) return Promise.resolve({ data: null, error: { message: "Unauthorized: order does not belong to customer" } });
         if (o.enviado_a_compras_at) return Promise.resolve({ data: null, error: { message: "Pedido ya enviado a compras: no editable" } });
+        if (tables.gv_estado.some((g) => g.order_id === o.id && (g.facturado || g.entregado))) return Promise.resolve({ data: null, error: { message: "Pedido ya facturado: no se puede modificar." } });
         const viejo = {}; tables.order_items.filter((r) => String(r.order_id) === String(o.id)).forEach((r) => { viejo[r.product_id] = (viejo[r.product_id] || 0) + r.cajas; });
         const nuevo = {}; (args.p_items || []).forEach((i) => { nuevo[i.product_id] = (nuevo[i.product_id] || 0) + i.cajas; });
         const bajan = Object.keys(viejo).filter((pid) => (nuevo[pid] || 0) < viejo[pid]);
@@ -115,7 +124,9 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     // 1. Mis pedidos: Editar sólo en el 55 (el 56 ya salió a compras)
     await loadMyOrdersUI();
     const box = document.getElementById("myOrdersBox").innerHTML;
-    out.btnEditar55 = /data-edit="55"/.test(box) && !/data-edit="56"/.test(box) && (box.match(/Editar pedido/g) || []).length === 1;
+    out.btnEditar55 = /data-edit="55"/.test(box) && !/data-edit="56"/.test(box) && !/data-edit="57"/.test(box) && (box.match(/Editar pedido/g) || []).length === 1;
+    out.estadoGestion = /Programado/.test(box) && /para 8\/9\/2026/.test(box) && /Pedido facturado: ya no se puede modificar/.test(box) && /o-stage-2/.test(box) && (box.match(/o-stepper/g) || []).length === 3;
+    if (!out.estadoGestion) out.boxHtml = box.slice(0, 1500);
 
     // 2. Abrir el 55: carrito con el piso
     await editOrder("55");
@@ -167,6 +178,10 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     const antes56 = F.tables.order_items.length;
     await submitOrder();
     out.bloquea56 = /enviado a compras/.test(document.getElementById("orderStatus").textContent) && F.tables.order_items.length === antes56 && editingOrderId === "56";
+    // 5b. El 57 está facturado en Gestión: la RPC lo rechaza
+    setEditingOrderId("57", { p1: 1 }); cart.length = 0; cart.push({ productId: "p1", qtyCajas: 2 }); updateCart();
+    await submitOrder();
+    out.bloquea57 = /ya facturado/.test(document.getElementById("orderStatus").textContent) && F.tables.order_items.length === antes56;
     // 6. Sin cambios → aviso, sin escribir
     setEditingOrderId("55", { p1: 3, p2: 1 }); cart.length = 0; cart.push({ productId: "p1", qtyCajas: 3 }, { productId: "p2", qtyCajas: 1 }); updateCart();
     await submitOrder();
@@ -177,7 +192,8 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
   });
 
   const checks = [
-    ["Mis pedidos: Editar sólo en el pedido que no salió a compras", r.btnEditar55],
+    ["Mis pedidos: Editar sólo en el pedido que no salió a compras ni está facturado", r.btnEditar55],
+    ["Mis pedidos: estado de Gestión (Programado para…, Facturado: no se puede modificar), 4 etapas", r.estadoGestion],
     ["editOrder: carrito con las líneas del pedido y su piso", r.abre],
     ["cartel amarillo con el N° y va al carrito", r.banner],
     ["el − deshabilitado, sin ✕, 'Ya en el pedido: 2'", r.pisoVisible],
@@ -192,6 +208,7 @@ catch (_e) { try { ({ chromium } = require("playwright")); } catch (_e2) { conso
     ["sale del modo edición y vacía el carrito", r.salioDelModo],
     ["pantalla de confirmación: 'actualizado · 2 líneas agregadas'", r.confirmacion],
     ["pedido ya enviado a compras: bloquea sin escribir", r.bloquea56],
+    ["pedido facturado en Gestión: la RPC bloquea sin escribir", r.bloquea57],
     ["sin cambios: avisa y no escribe", r.sinCambios],
     ["Cancelar edición vuelve a productos", r.cancela],
     ["sin errores de página", errs.length === 0],
