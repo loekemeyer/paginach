@@ -1197,7 +1197,7 @@
           };
         });
         var total = subtotal;
-        var paymentMethodText = "Contado";
+        var paymentMethodText = "Sin Cotizador";
         var rpcResult = await window.sb.rpc("submit_order_fast", {
           p_auth_user_id: session.user.id,
           p_customer_id: state.customer.id,

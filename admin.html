@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="img/favicon-opt.png" />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/analisis-venta-cliente.css" />
-    <link rel="stylesheet" href="css/admin.css?v=2033" />
+    <link rel="stylesheet" href="css/admin.css?v=2034" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -322,6 +322,21 @@
                   </svg>
                 </span>
                 <span>Excel Fmto Cltes</span>
+              </button>
+              <button class="nav-item" data-page="pedidos-sin-cot">
+                <span class="nav-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path d="M9 3h6l1 2h3a1 1 0 011 1v13a2 2 0 01-2 2H6a2 2 0 01-2-2V6a1 1 0 011-1h3z" />
+                    <line x1="9" y1="11" x2="15" y2="11" />
+                    <line x1="12" y1="8" x2="12" y2="14" />
+                  </svg>
+                </span>
+                <span>Pedidos sin cot</span>
               </button>
               <!--
                 "Cargar PPP" oculto del sidebar — el tracking ahora se sincroniza
@@ -851,6 +866,67 @@
 
           <div class="cp-cards-grid" id="cpCardsGrid">
             <!-- 3 cards se generan por JS en cpInitCards() -->
+          </div>
+        </section>
+
+        <!-- ===== Pedidos sin cotizador ===== -->
+        <section class="page" id="pedidos-sin-cot">
+          <div class="page-header">
+            <div>
+              <h1>Pedidos sin cotizador</h1>
+              <p class="page-sub">
+                Carga manual: elegí cliente, artículos y cajas. Se envía por el
+                mismo pipeline (condición de pago: Sin Cotizador).
+              </p>
+            </div>
+          </div>
+
+          <div class="psc-wrap">
+            <div class="psc-field">
+              <label class="field-label" for="pscSearch">Cliente</label>
+              <div class="psc-search-box">
+                <input
+                  type="text"
+                  id="pscSearch"
+                  class="field-input"
+                  placeholder="Buscar por razón social o código..."
+                  autocomplete="off"
+                />
+                <div id="pscSuggest" class="cp-suggest" style="display: none"></div>
+              </div>
+              <div id="pscCustomer" class="psc-customer" style="display: none"></div>
+            </div>
+
+            <div class="psc-field" id="pscDeliveryField" style="display: none">
+              <label class="field-label" for="pscDeliverySelect"
+                >Sucursal de entrega</label
+              >
+              <select id="pscDeliverySelect" class="field-input"></select>
+            </div>
+
+            <div class="psc-items" id="pscItemsWrap" style="display: none">
+              <table class="psc-table">
+                <thead>
+                  <tr>
+                    <th>Cód</th>
+                    <th>Artículo</th>
+                    <th>Cajas</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="pscTableBody"></tbody>
+              </table>
+              <button type="button" id="pscAddRow" class="psc-add-row">
+                + Agregar fila
+              </button>
+
+              <div class="psc-footer">
+                <div id="pscTotal" class="psc-total"></div>
+                <button type="button" id="pscSubmit" class="btn-primary" disabled>
+                  Enviar Pedido
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -2450,12 +2526,12 @@
       </div>
     </div>
 
-    <script src="./version.js?v=2033"></script>
-    <script src="excel-parser-smart.js?v=2033"></script>
-    <script src="argentina-map-data.js?v=2033"></script>
-    <script src="admin.js?v=2033"></script>
-    <script src="admin-supercot.js?v=2033"></script>
-    <script src="admin-excel-krikos.js?v=2033"></script>
-    <script src="analisis-venta-cliente.js?v=2033"></script>
+    <script src="./version.js?v=2034"></script>
+    <script src="excel-parser-smart.js?v=2034"></script>
+    <script src="argentina-map-data.js?v=2034"></script>
+    <script src="admin.js?v=2034"></script>
+    <script src="admin-supercot.js?v=2034"></script>
+    <script src="admin-excel-krikos.js?v=2034"></script>
+    <script src="analisis-venta-cliente.js?v=2034"></script>
   </body>
 </html>

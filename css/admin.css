@@ -3062,3 +3062,114 @@ input[type="number"].manual-cell {
   color: #15803d;
 }
 .cc-cuit-copy.copiado .cc-cuit-ico { opacity: 1; }
+
+/* ===== Pedidos sin cotizador ===== */
+.psc-wrap {
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.psc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.psc-search-box {
+  position: relative;
+}
+.psc-customer {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+}
+.psc-c-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+.psc-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.psc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.psc-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text3);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.psc-table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+.psc-td-cod {
+  position: relative;
+  width: 140px;
+}
+.psc-td-desc {
+  font-size: 13px;
+  color: var(--text);
+}
+.psc-td-desc.psc-desc-empty {
+  color: var(--text3);
+}
+.psc-td-cajas {
+  width: 110px;
+}
+.psc-td-x {
+  width: 36px;
+  text-align: center;
+}
+.psc-row-x {
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.psc-row-x:hover {
+  background: var(--bg2);
+  color: var(--danger);
+}
+.psc-add-row {
+  align-self: flex-start;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--accent);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.psc-add-row:hover {
+  background: var(--bg2);
+}
+.psc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+.psc-total {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 600;
+}
+.psc-prod-suggest {
+  min-width: 340px;
+}
