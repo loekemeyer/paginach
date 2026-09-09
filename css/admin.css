@@ -3173,3 +3173,31 @@ input[type="number"].manual-cell {
 .psc-prod-suggest {
   min-width: 340px;
 }
+
+/* ===== Pedidos sin cot — nueva sucursal ===== */
+.psc-newsuc-toggle {
+  align-self: flex-start;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--accent);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+}
+.psc-newsuc-toggle:hover { background: var(--bg2); }
+.psc-newsuc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  margin-top: 6px;
+}
+.psc-newsuc-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.psc-newsuc-err { color: var(--danger); font-size: 12px; font-weight: 600; }
+.psc-suc-none { font-size: 13px; color: var(--text3); }

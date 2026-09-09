@@ -7875,14 +7875,17 @@ function _cliPendWireOnce() {
   if (reload) reload.addEventListener("click", cargarClientesPendientes);
   if (exp) exp.addEventListener("click", exportarClientesPendientes);
 }
+
 // =====================================================
 // ---- PEDIDOS SIN COTIZADOR --------------------------
 // Carga manual de un pedido (cliente + cod/cajas). Se envia por el MISMO
 // pipeline que el Cotizador (submit_order_fast + sheets-proxy + entregas-proxy).
 // Condicion de pago FIJA: "Sin Cotizador" (condicion_pago_code = 1).
 // Precio: SOLO LISTA (list_price x uxb, sin dto_vol ni web_discount).
+// PSC_LSUFFIX = true -> sugiere ademas el codigo con "L" al final (regla Chef).
 // =====================================================
 var PSC_DEFAULT_ROWS = 10;
+var PSC_LSUFFIX = true;
 var pscState = {
   customer: null,
   deliveryAddresses: [],
@@ -7922,7 +7925,10 @@ function pscReset() {
     cust.innerHTML = "";
   }
   var delF = document.getElementById("pscDeliveryField");
-  if (delF) delF.style.display = "none";
+  if (delF) {
+    delF.style.display = "none";
+    delF.innerHTML = "";
+  }
   var itemsW = document.getElementById("pscItemsWrap");
   if (itemsW) itemsW.style.display = "none";
   pscRenderRows();
@@ -8076,34 +8082,161 @@ async function pscSelectCustomer(c) {
     console.error("psc delivery addrs:", e);
   }
   pscState.deliveryAddresses = addrs;
-  var sel = document.getElementById("pscDeliverySelect");
-  if (sel) {
-    if (addrs.length) {
-      sel.innerHTML = addrs
-        .map(function (a, i) {
-          return (
-            '<option value="' +
-            i +
-            '">' +
-            cpEscHTML(a.label || "Sucursal " + (a.slot != null ? a.slot : i + 1)) +
-            "</option>"
-          );
-        })
-        .join("");
-    } else {
-      // Sin sucursales cargadas: se usa la razon social como destino.
-      sel.innerHTML =
-        '<option value="-1">' +
-        cpEscHTML(c.business_name || "(principal)") +
-        "</option>";
-    }
-  }
-  var delF = document.getElementById("pscDeliveryField");
-  if (delF) delF.style.display = "";
+  pscRenderDelivery(addrs.length ? 0 : null);
   var itemsW = document.getElementById("pscItemsWrap");
   if (itemsW) itemsW.style.display = "";
   pscRenderRows();
   pscUpdateSubmitState();
+}
+
+// Muestra las sucursales YA cargadas del cliente; si no tiene (o no es la
+// deseada) permite crear una nueva (label + direccion + zona) en el momento.
+function pscRenderDelivery(selIdx) {
+  var delF = document.getElementById("pscDeliveryField");
+  if (!delF) return;
+  var addrs = pscState.deliveryAddresses || [];
+  var hasAddrs = addrs.length > 0;
+  var optsHtml = addrs
+    .map(function (a, i) {
+      var lbl =
+        a.label ||
+        a.direccion_entrega ||
+        "Sucursal " + (a.slot != null ? a.slot : i + 1);
+      return (
+        '<option value="' +
+        i +
+        '"' +
+        (selIdx === i ? " selected" : "") +
+        ">" +
+        cpEscHTML(lbl) +
+        "</option>"
+      );
+    })
+    .join("");
+  delF.innerHTML =
+    '<label class="field-label">Sucursal de entrega</label>' +
+    (hasAddrs
+      ? '<select id="pscDeliverySelect" class="field-input">' +
+        optsHtml +
+        "</select>"
+      : '<div class="psc-suc-none">Este cliente no tiene sucursales cargadas. Creá una para continuar.</div>') +
+    '<button type="button" id="pscNewSucToggle" class="psc-newsuc-toggle">+ Nueva sucursal</button>' +
+    '<div id="pscNewSucForm" class="psc-newsuc-form" style="display:none">' +
+    '<input type="text" id="pscNewSucLabel" class="field-input" placeholder="Nombre / label (ej: Sucursal Centro)" />' +
+    '<input type="text" id="pscNewSucDir" class="field-input" placeholder="Dirección real de entrega" />' +
+    '<input type="text" id="pscNewSucZona" class="field-input" placeholder="Zona expreso" />' +
+    '<div class="psc-newsuc-actions">' +
+    '<button type="button" id="pscNewSucCancel" class="btn-ghost">Cancelar</button>' +
+    '<button type="button" id="pscNewSucSave" class="btn-primary">Guardar sucursal</button>' +
+    "</div>" +
+    '<div id="pscNewSucErr" class="psc-newsuc-err" style="display:none"></div>' +
+    "</div>";
+  delF.style.display = "";
+  var sel = document.getElementById("pscDeliverySelect");
+  if (sel) sel.addEventListener("change", pscUpdateSubmitState);
+  var tog = document.getElementById("pscNewSucToggle");
+  if (tog) tog.addEventListener("click", function () { pscShowNewSuc(true); });
+  var can = document.getElementById("pscNewSucCancel");
+  if (can) can.addEventListener("click", function () { pscShowNewSuc(false); });
+  var sav = document.getElementById("pscNewSucSave");
+  if (sav) sav.addEventListener("click", pscSaveNewSuc);
+  // Sin sucursales: abrir el form directamente.
+  if (!hasAddrs) pscShowNewSuc(true);
+}
+
+function pscShowNewSuc(show) {
+  var form = document.getElementById("pscNewSucForm");
+  var tog = document.getElementById("pscNewSucToggle");
+  if (!form) return;
+  form.style.display = show ? "" : "none";
+  if (tog) tog.style.display = show ? "none" : "";
+  if (show) {
+    var l = document.getElementById("pscNewSucLabel");
+    if (l) l.focus();
+  } else {
+    ["pscNewSucLabel", "pscNewSucDir", "pscNewSucZona"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    var err = document.getElementById("pscNewSucErr");
+    if (err) err.style.display = "none";
+  }
+}
+
+async function pscSaveNewSuc() {
+  if (!pscState.customer) return;
+  var err = document.getElementById("pscNewSucErr");
+  function showErr(msg) {
+    if (err) {
+      err.textContent = msg;
+      err.style.display = "block";
+    }
+  }
+  var label = (document.getElementById("pscNewSucLabel") || {}).value || "";
+  var dir = (document.getElementById("pscNewSucDir") || {}).value || "";
+  var zona = (document.getElementById("pscNewSucZona") || {}).value || "";
+  label = label.trim();
+  dir = dir.trim();
+  zona = zona.trim();
+  if (err) err.style.display = "none";
+  if (!label) return showErr("Ingresá el nombre / label.");
+  if (!dir) return showErr("Ingresá la dirección real de entrega.");
+  if (!zona) return showErr("Ingresá la zona expreso.");
+  var existing = pscState.deliveryAddresses || [];
+  var dupNorm = label.toLowerCase();
+  if (
+    existing.some(function (d) {
+      return String(d.label || "").trim().toLowerCase() === dupNorm;
+    })
+  )
+    return showErr("Ya existe una sucursal con ese label.");
+  var nextSlot =
+    existing.reduce(function (m, d) {
+      return Math.max(m, Number(d.slot || 0));
+    }, 0) + 1;
+  var saveBtn = document.getElementById("pscNewSucSave");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Guardando...";
+  }
+  try {
+    var r = await sb
+      .from("customer_delivery_addresses")
+      .insert({
+        customer_id: pscState.customer.id,
+        slot: nextSlot,
+        label: label,
+        direccion_entrega: dir,
+        zona_expreso: zona,
+      })
+      .select()
+      .single();
+    if (r.error) throw new Error(r.error.message || "Error al insertar sucursal");
+    pscState.deliveryAddresses = existing
+      .concat([r.data])
+      .sort(function (a, b) {
+        return Number(a.slot) - Number(b.slot);
+      });
+    var newIdx = pscState.deliveryAddresses.findIndex(function (d) {
+      return d.slot === r.data.slot;
+    });
+    pscRenderDelivery(newIdx >= 0 ? newIdx : 0);
+    toast("Sucursal creada", "success");
+    pscUpdateSubmitState();
+  } catch (e) {
+    console.error("psc save sucursal:", e);
+    showErr("Error: " + (e.message || e));
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar sucursal";
+    }
+  }
+}
+
+function pscSelectedAddr() {
+  var sel = document.getElementById("pscDeliverySelect");
+  if (!sel || sel.value === "") return null;
+  return pscState.deliveryAddresses[Number(sel.value)] || null;
 }
 
 function pscRenderRows() {
@@ -8231,25 +8364,37 @@ function pscSuggestProducts(i, q) {
     box.style.display = "block";
     return;
   }
-  box.innerHTML = matches
-    .slice(0, 12)
-    .map(function (p) {
-      return (
-        '<div class="cp-suggest-row" data-cod="' +
-        cpEscHTML(p.cod || "") +
-        '"><span class="cp-suggest-cod">' +
-        cpEscHTML(p.cod || "") +
+  // Cada artículo puede rendir 1 fila (base) o 2 (base + "L") si PSC_LSUFFIX.
+  var rowsHtml = [];
+  matches.slice(0, 12).forEach(function (p) {
+    var base = String(p.cod || "");
+    rowsHtml.push(
+      '<div class="cp-suggest-row" data-cod="' +
+        cpEscHTML(base) +
+        '" data-l="0"><span class="cp-suggest-cod">' +
+        cpEscHTML(base) +
         '</span><span class="cp-suggest-name">' +
         cpEscHTML(p.description || "") +
-        "</span></div>"
+        "</span></div>",
+    );
+    if (PSC_LSUFFIX) {
+      rowsHtml.push(
+        '<div class="cp-suggest-row" data-cod="' +
+          cpEscHTML(base) +
+          '" data-l="1"><span class="cp-suggest-cod">' +
+          cpEscHTML(base + "L") +
+          '</span><span class="cp-suggest-name">' +
+          cpEscHTML(p.description || "") +
+          " · art. Loeke por Chef</span></div>",
       );
-    })
-    .join("");
+    }
+  });
+  box.innerHTML = rowsHtml.join("");
   box.style.display = "block";
   box.querySelectorAll(".cp-suggest-row").forEach(function (row) {
     row.addEventListener("mousedown", function (e) {
       e.preventDefault();
-      pscChooseProduct(i, row.dataset.cod);
+      pscChooseProduct(i, row.dataset.cod, row.dataset.l === "1");
     });
   });
 }
@@ -8262,15 +8407,19 @@ function pscHideProdSuggest(i) {
   }
 }
 
-function pscChooseProduct(i, cod) {
-  var p = cpFindProduct(cod);
-  if (!p) return;
+function pscChooseProduct(i, cod, isL) {
+  var base = cpFindProduct(cod);
+  if (!base) return;
+  var effCod = isL ? String(base.cod) + "L" : String(base.cod);
+  var chosen = isL
+    ? { id: base.id, cod: effCod, description: base.description, list_price: base.list_price, uxb: base.uxb, _isL: true }
+    : base;
   var dup = pscState.rows.some(function (r, idx) {
-    return idx !== i && r.product && String(r.product.cod) === String(p.cod);
+    return idx !== i && r.product && String(r.product.cod) === String(effCod);
   });
-  if (dup) toast("El artículo " + p.cod + " ya está en otra fila", "warning");
-  pscState.rows[i].product = p;
-  pscState.rows[i].codText = p.cod;
+  if (dup) toast("El artículo " + effCod + " ya está en otra fila", "warning");
+  pscState.rows[i].product = chosen;
+  pscState.rows[i].codText = effCod;
   pscHideProdSuggest(i);
   pscRenderRows();
   var caj = document.querySelector('.psc-cajas[data-i="' + i + '"]');
@@ -8285,10 +8434,18 @@ function pscFinalizeCod(i, value) {
   if (pscState.rows[i] && pscState.rows[i].product) return;
   var p = cpFindProduct(value);
   if (p) {
-    pscChooseProduct(i, p.cod);
-  } else {
-    pscUpdateSubmitState();
+    pscChooseProduct(i, p.cod, false);
+    return;
   }
+  // PSC_LSUFFIX: si tipearon "438EL" y "438E" es válido, tomarlo como variante L.
+  if (PSC_LSUFFIX && /L$/i.test(value)) {
+    var base = value.slice(0, -1);
+    if (cpFindProduct(base)) {
+      pscChooseProduct(i, base, true);
+      return;
+    }
+  }
+  pscUpdateSubmitState();
 }
 
 function pscUpdateTotal() {
@@ -8320,7 +8477,12 @@ function pscUpdateSubmitState() {
   var hasLine = pscState.rows.some(function (r) {
     return r.product && r.cajas > 0;
   });
-  btn.disabled = !(pscState.customer && hasLine && !pscState.submitting);
+  btn.disabled = !(
+    pscState.customer &&
+    hasLine &&
+    pscSelectedAddr() &&
+    !pscState.submitting
+  );
 }
 
 async function pscSubmit() {
@@ -8336,17 +8498,14 @@ async function pscSubmit() {
     toast("Agregá al menos un artículo con cajas", "warning");
     return;
   }
-  var sel = document.getElementById("pscDeliverySelect");
-  var selIdx = sel ? Number(sel.value) : -1;
-  var addr =
-    selIdx >= 0 && pscState.deliveryAddresses[selIdx]
-      ? pscState.deliveryAddresses[selIdx]
-      : null;
-  var finalDelivery = addr
-    ? addr.label || ""
-    : pscState.customer.business_name || "";
-  var finalDelDir = addr ? addr.direccion_entrega || "" : "";
-  var finalDelZona = addr ? addr.zona_expreso || "" : "";
+  var addr = pscSelectedAddr();
+  if (!addr) {
+    toast("Elegí o creá una sucursal de entrega", "warning");
+    return;
+  }
+  var finalDelivery = addr.label || addr.direccion_entrega || "";
+  var finalDelDir = addr.direccion_entrega || "";
+  var finalDelZona = addr.zona_expreso || "";
 
   var confirmMsg =
     "Enviar pedido de " +
