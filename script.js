@@ -4938,6 +4938,7 @@ async function sendOrderToSheets({
     condicion_pago: String(condicionPago || "").trim(),
     sucursal_entrega: String(sucursalEntrega || "").trim(),
     cliente_nuevo: String(clienteNuevo || "").trim(),
+    source: "Web", // pedido armado por el cliente en la página (habilita la col K "2% Descuento Web" en el Excel ISIS de Gestión)
     is_chef: true, // marca pedidos de la página Chef → ruta a hoja "Pedidos CH"
     // Campos para Leyenda 2 (col J en Pedidos CH)
     deuda: Number(deuda || 0),
