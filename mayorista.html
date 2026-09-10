@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <link rel="stylesheet" href="css/tokens.css">
-    <link rel="stylesheet" href="css/styles.css?v=2033">
+    <link rel="stylesheet" href="css/styles.css?v=2039">
     <link rel="stylesheet" href="css/analisis-venta-cliente.css">
     <link rel="icon" type="image/png" href="img/favicon.png">
   </head>
@@ -746,6 +746,9 @@
            ============================================================ -->
       <div class="cart-2col">
         <div class="cart-col-left">
+          <!-- Aviso de deuda (dato de Gestion Virgilio, ~1x por semana). Solo
+               avisa, no bloquea. Lo completa updateCart() desde _deudaCliente. -->
+          <div id="deudaAviso" class="deuda-aviso" hidden></div>
           <!-- Dirección de entrega -->
           <div class="ship-row">
             <div class="ship-card">
@@ -1612,7 +1615,7 @@
 
     <!-- Tu JS -->
     <script defer src="config.js"></script>
-    <script defer src="script.js?v=2038"></script>
+    <script defer src="script.js?v=2039"></script>
     <!-- Análisis de compras embebido en el perfil del cliente (lazy load) -->
     <script defer src="analisis-venta-cliente.js"></script>
 
