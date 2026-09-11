@@ -15,9 +15,26 @@ hacer sin figurar en la agenda de alguien.
 1. **Al empezar la sesión, preguntar quién está hablando** (antes de hacer nada):
    *"¿Quién sos? (Thomas, Marianela, Luis, Gastón, …)"*. Si el mensaje ya lo dice, no repreguntar.
 2. **Cada pedido de trabajo se registra como tarea en el Planify de esa persona**, apenas se
-   empieza, con nombre MUY resumido (≤ 60 caracteres) y una nota de 1–3 líneas con el
-   contexto. Queda `done=false` hasta que se cierre (punto 4). Si la sesión termina sin
-   cerrar, la tarea queda en la agenda: ése es el objetivo.
+   empieza, con nombre MUY resumido (≤ 60 caracteres). Queda `done=false` hasta que se cierre
+   (punto 4). Si la sesión termina sin cerrar, la tarea queda en la agenda: ése es el objetivo.
+
+   **La nota (comentario) lleva SIEMPRE estas tres cosas, en este orden y conciso** (dueño,
+   2026-09-11: *"en comentarios tiene que explicar conciso qué es lo que falta y quién le creó
+   la tarea y desde qué sesión de Claude"*):
+   1. **Qué falta**: qué hay que hacer, concreto y accionable — no el historial de lo ya hecho.
+      Si algo ya se hizo, va en una línea aparte al final ("Ya hecho: …").
+   2. **Quién la pidió**: el nombre de la persona que lo pidió en el chat (Thomas, Marianela, …).
+   3. **De qué sesión salió**: la URL de esta sesión de Claude, para poder ir a leer la charla.
+
+   Formato:
+   `Falta: <qué hay que hacer>. Pedido de <Nombre> · cargada por Claude, sesión <url>`
+
+   Ejemplo real: `Falta: cargar el secreto KRIKOS_IMAP_PASS en el Vault de Supabase LK
+   (kwkclwhmoygunqmlegrg); sin eso krikos-ingest no lee la casilla y la Bandeja de OC queda
+   vacía. Pedido de Thomas · cargada por Claude, sesión https://claude.ai/code/session_XXXX`
+
+   **Al cerrar o actualizar la tarea, la nota se reescribe con lo que quedó pendiente**, no se
+   le agrega texto encima: quien la lee tiene que ver de un vistazo qué falta hoy.
 3. **Excepción del dueño:** Thomas Loekemeyer NO usa Planify. Sus pedidos se cargan en el
    Planify de **Tomás Beviglia (employee_id 20)** con el nombre antepuesto por **`Th `**
    (ej. `Th Fecha estimada de entrega por zona`).
@@ -35,8 +52,9 @@ Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. Si el nombre no está, bus
 insert into planify.tasks (name, type, prio, time, date, note, rec, done, assignment_type,
   employee_id, department_id, system_generated, broadcast, created_at, updated_at)
 values ('<resumen ≤60>', 'tarea', 'normal', '09:00', to_char(now() at time zone
-  'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'), '<contexto 1-3 líneas> — cargado desde
-  sesión de Claude', 'none', false, 'employee', <employee_id>, null, false, false, now(), now())
+  'America/Argentina/Buenos_Aires', 'YYYY-MM-DD'),
+  'Falta: <qué hay que hacer, concreto>. Pedido de <Nombre> · cargada por Claude, sesión
+  <url de ESTA sesión>', 'none', false, 'employee', <employee_id>, null, false, false, now(), now())
 returning id;
 -- cierre (cuando la persona la da por terminada)
 update planify.tasks set done = true, updated_at = now() where id = <id>;
