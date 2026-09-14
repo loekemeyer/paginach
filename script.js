@@ -260,6 +260,82 @@ function $(id) {
 
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 
+// ---------------------------------------------------------------------------
+// RETIRA: el cliente elige día (desde +3 días hábiles) y franja horaria.
+// Portado de pagina-lk-copia el 2026-09-14, a pedido de Tomás González.
+// El bloque del formulario es #retiroBlock en mayorista.html; se muestra sólo
+// cuando la sucursal elegida tiene zona_expreso = "Retira".
+//
+// ⚠ Los feriados salen de la tabla `feriados` del proyecto Supabase de Chef.
+// Si esa tabla no existe o la consulta falla, el set queda VACÍO y sólo se
+// saltean sábados y domingos — la funcionalidad sigue andando, nada más que un
+// feriado podría quedar elegible. Es a propósito: no vale romper el checkout
+// por no poder leer una tabla auxiliar.
+// ---------------------------------------------------------------------------
+function _esRetira() {
+  return String(deliveryChoice?.zonaExpreso || "").trim().toLowerCase() === "retira";
+}
+function _isoLocal(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+let _feriadosSet = new Set();
+async function loadFeriados() {
+  try {
+    const { data, error } = await supabaseClient.from("feriados").select("fecha");
+    if (error) throw error;
+    _feriadosSet = new Set((data || []).map((r) => String(r.fecha).slice(0, 10)));
+  } catch (e) {
+    console.warn("No se pudieron leer los feriados", e);
+  }
+}
+function _esHabil(d) {
+  return d.getDay() !== 0 && d.getDay() !== 6 && !_feriadosSet.has(_isoLocal(d));
+}
+// Suma n días hábiles (lun-vie, sin feriados).
+function _sumarHabiles(d, n) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  let k = 0;
+  while (k < n) {
+    r.setDate(r.getDate() + 1);
+    if (_esHabil(r)) k++;
+  }
+  return r;
+}
+function _retiroMinIso() {
+  return _isoLocal(_sumarHabiles(new Date(), 3));
+}
+function _retiroSeleccion() {
+  const fecha = String($("retiroFecha")?.value || "").trim();
+  const franja = document.querySelector('input[name="retiroFranja"]:checked')?.value || "";
+  return { fecha, franja };
+}
+// Fecha válida: ≥ mínimo y no cae en fin de semana ni feriado.
+function _retiroFechaValida(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  if (iso < _retiroMinIso()) return false;
+  return _esHabil(new Date(iso + "T12:00:00"));
+}
+function _syncRetiroUI() {
+  const block = $("retiroBlock");
+  if (!block) return;
+  const retira = _esRetira();
+  block.hidden = !retira;
+  if (retira) {
+    const inp = $("retiroFecha");
+    if (inp) {
+      inp.min = _retiroMinIso();
+      if (inp.value && !_retiroFechaValida(inp.value)) inp.value = "";
+    }
+  }
+}
+function _resetRetiro() {
+  const inp = $("retiroFecha");
+  if (inp) inp.value = "";
+  document.querySelectorAll('input[name="retiroFranja"]').forEach((r) => (r.checked = false));
+  _syncRetiroUI();
+}
+
 function formatMoney(n) {
   return Math.round(Number(n || 0)).toLocaleString("es-AR");
 }
@@ -4884,8 +4960,12 @@ function updateCart() {
     // sólo hace falta que el carrito tenga algo.
     const mustChooseDelivery = !editingOrderId && !deliveryChoice.slot;
     const mustConfirmDelivery = !editingOrderId && !!deliveryChoice.slot && !deliveryConfirmed;
+    // Retira: exige día válido (≥ +3 hábiles, lun-vie) y franja horaria.
+    const _rs = _esRetira() ? _retiroSeleccion() : null;
+    const mustChooseRetiro =
+      !!_rs && (!_retiroFechaValida(_rs.fecha) || !_rs.franja);
     const canConfirm =
-      !!currentSession && cart.length > 0 && !mustChooseDelivery && !mustConfirmDelivery;
+      !!currentSession && cart.length > 0 && !mustChooseDelivery && !mustConfirmDelivery && !mustChooseRetiro;
 
     btn.disabled = !canConfirm;
 
@@ -4897,6 +4977,11 @@ function updateCart() {
     } else if (!!currentSession && cart.length > 0 && mustConfirmDelivery) {
       setOrderStatus(
         'Confirmá tu dirección de entrega para poder confirmar el pedido.',
+        "err",
+      );
+    } else if (!!currentSession && cart.length > 0 && mustChooseRetiro) {
+      setOrderStatus(
+        "Elegí el día y la franja horaria en la que vas a retirar el pedido.",
         "err",
       );
     } else if (btn.disabled === false) {
@@ -5466,6 +5551,10 @@ async function submitOrder() {
   const clienteNuevoValue = isAdmin
     ? String($("clienteNuevoInput")?.value || "").trim()
     : "";
+  // Retira: día + franja. Se lee ACÁ, en la función que arma el payload, y NO
+  // se toma prestada de otra — ese error le costó a LK 6 pedidos perdidos entre
+  // el 11 y el 14/09 (ver la nota del payload, más abajo).
+  const _retiroSel = _esRetira() ? _retiroSeleccion() : { fecha: "", franja: "" };
 
   try {
     setOrderStatus("");
@@ -5691,6 +5780,15 @@ async function submitOrder() {
       condicionPagoCode: getPaymentMethodCode(),
       sucursalEntrega: lastConfirmedOrder.sucursalEntrega,
       clienteNuevo: clienteNuevoValue,
+      // Retira: día y franja que eligió el cliente. Se leen ACÁ, en la misma
+      // función que arma el payload — nunca de otra función. En LK esa variable
+      // se tomaba prestada de submitOrder() y salta un ReferenceError después
+      // de que el pedido ya quedó grabado: del 11/09 al 14/09 dejó 6 pedidos
+      // invisibles para Gestión. Las claves van en snake_case aunque el resto
+      // del payload sea camelCase: son las mismas que usa LK y las lee el mismo
+      // consumidor (Gestión Virgilio), así que conviene una sola grafía.
+      retiro_fecha: _retiroSel.fecha || null,
+      retiro_franja: _retiroSel.franja || null,
       // Datos del customer para la Leyenda 2 (D / LC / PP)
       deuda: Number(customerProfile?.debt || 0),
       payment_term: customerProfile?.payment_term != null ? Number(customerProfile.payment_term) : null,
@@ -5748,6 +5846,9 @@ async function submitOrder() {
     // ---- Confirmación INMEDIATA al cliente ----
     cart.length = 0;
     saveCartToLS();
+    // Retira: limpiar el día y la franja, para que el próximo pedido no arrastre
+    // los del anterior.
+    _resetRetiro();
 
     // Borrar draft asociado si este pedido venía de "Pedidos sin Confirmar"
     if (window.__activeDraftId) {
@@ -9374,6 +9475,10 @@ function togglePassword(inputId, btnEl) {
  ***********************/
 document.addEventListener("DOMContentLoaded", async () => {
   // getWebOrderDiscount se carga en paralelo más abajo (Promise.all)
+  // Retira: los feriados se piden en segundo plano (no bloquean la carga de la
+  // página) y al llegar se refresca el mínimo del selector de día. Si la tabla
+  // no existe, el set queda vacío y sólo se saltean sábados y domingos.
+  loadFeriados().then(() => _syncRetiroUI());
   // ===== LOADER CONTROL (solo 1ra vez por página) =====
  const loader = document.getElementById("pageLoader");
   if (loader) loader.remove();
@@ -9849,6 +9954,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       deliveryChoice.direccionEntrega = opt?.dataset?.direccionEntrega || "";
       deliveryChoice.zonaExpreso = opt?.dataset?.zonaExpreso || "";
 
+      // Retira: mostrar u ocultar el día + franja según la sucursal elegida.
+      // Si se cambia a una que NO es Retira, además se limpia lo elegido para
+      // que no viaje en el pedido una fecha de retiro que ya no corresponde.
+      if (_esRetira()) _syncRetiroUI();
+      else _resetRetiro();
+
       // Al cambiar de sucursal, hay que volver a apretar "Confirmar"
       // (mantenemos el texto corto, igual que cuando el botón se crea por
       // primera vez — antes acá se reseteaba al texto largo "Confirmar
@@ -9865,6 +9976,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       refreshSubmitEnabled();
     });
   }
+
+  // Retira: al elegir día o franja hay que revalidar el botón de confirmar, y
+  // avisar si el día no sirve (antes del mínimo, fin de semana o feriado).
+  $("retiroFecha")?.addEventListener("change", (ev) => {
+    const v = String(ev.target.value || "").trim();
+    if (v && !_retiroFechaValida(v)) {
+      const min = _retiroMinIso().split("-").reverse().slice(0, 2).join("/");
+      setOrderStatus(
+        "Ese día no se puede retirar. Elegí un día hábil desde el " + min + ".",
+        "err",
+      );
+      ev.target.value = "";
+    }
+    updateCart();
+  });
+  document.querySelectorAll('input[name="retiroFranja"]').forEach((r) => {
+    r.addEventListener("change", () => updateCart());
+  });
 
   // =============================
   // Click afuera: cerrar menús (UNA SOLA VEZ)

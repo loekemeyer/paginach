@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <link rel="stylesheet" href="css/tokens.css">
-    <link rel="stylesheet" href="css/styles.css?v=2043">
+    <link rel="stylesheet" href="css/styles.css?v=2044">
     <link rel="stylesheet" href="css/analisis-venta-cliente.css">
     <link rel="icon" type="image/png" href="img/favicon.png">
   </head>
@@ -760,6 +760,26 @@
               </select>
               <div class="ship-hint">
                 Seleccioná una dirección para poder confirmar el pedido.
+              </div>
+              <!-- RETIRA: el cliente elige día (desde +3 días hábiles) y franja
+                   horaria. Lo muestra/oculta _syncRetiroUI() según la sucursal
+                   elegida. Portado de pagina-lk-copia el 2026-09-14. -->
+              <div id="retiroBlock" class="retiro-block" hidden>
+                <label class="ship-label" for="retiroFecha">¿Qué día retirás?</label>
+                <input type="date" id="retiroFecha" class="retiro-fecha" />
+                <div class="ship-hint" id="retiroFechaHint">
+                  A partir de 3 días hábiles. Lunes a viernes.
+                </div>
+                <div class="retiro-franjas" role="radiogroup" aria-label="Franja horaria">
+                  <label class="retiro-franja">
+                    <input type="radio" name="retiroFranja" value="9:00 a 12:00" />
+                    <span>9:00 a 12:00</span>
+                  </label>
+                  <label class="retiro-franja">
+                    <input type="radio" name="retiroFranja" value="13:00 a 16:30" />
+                    <span>13:00 a 16:30</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -1615,7 +1635,7 @@
 
     <!-- Tu JS -->
     <script defer src="config.js"></script>
-    <script defer src="script.js?v=2043"></script>
+    <script defer src="script.js?v=2044"></script>
     <!-- Análisis de compras embebido en el perfil del cliente (lazy load) -->
     <script defer src="analisis-venta-cliente.js"></script>
 
