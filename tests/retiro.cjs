@@ -63,6 +63,21 @@ if (iniFn > 0) {
     "_retiroSel NO está declarada dentro de submitOrder: si se toma de otra " +
     "función salta un ReferenceError DESPUÉS de grabar el pedido y queda sin ficha " +
     "(es lo que le pasó a LK del 11/09 al 14/09)");
+
+  // La ficha tiene que ir EN EL MISMO INSERT que crea el pedido. Si se vuelve a
+  // guardar en un update posterior, reaparece la ventana en la que el pedido
+  // existe sin ficha — invisible para Gestión.
+  const posFicha = cuerpo.indexOf("const sheetsPayload = {");
+  const posInsert = cuerpo.indexOf('.from("orders")');
+  exigir(posFicha > 0 && posInsert > 0 && posFicha < posInsert,
+    "el sheetsPayload se arma DESPUÉS del insert de orders: tiene que armarse " +
+    "antes y viajar en el mismo insert");
+  exigir(/sheets_payload:\s*sheetsPayload,/.test(cuerpo),
+    "el insert de orders ya no lleva sheets_payload: el pedido puede volver a " +
+    "quedar guardado sin su ficha");
+  exigir(/fichaEnElInsert/.test(cuerpo),
+    "se perdió el resguardo: si el insert con ficha fuera rechazado hay que " +
+    "reintentar sin ella antes que perder el pedido");
 }
 
 if (fallas.length) {

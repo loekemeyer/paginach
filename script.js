@@ -5685,6 +5685,39 @@ async function submitOrder() {
       return;
     }
 
+    // ─── LA FICHA DEL PEDIDO (sheets_payload) ───
+    // Se arma ACÁ, ANTES del insert, y viaja EN EL MISMO INSERT que crea el
+    // pedido: así no existe un instante en que el pedido esté guardado sin su
+    // ficha. Antes se guardaba en un update posterior, y esa ventana es la que
+    // en LK dejó 6 pedidos reales invisibles para Gestión entre el 11 y el
+    // 14/09 (Gestión sólo ve los pedidos que tienen ficha).
+    // `orderNumber` no va acá: el id todavía no existe. Se completa abajo, una
+    // vez insertado, para lo que se manda al Sheet.
+    const sheetsPayload = {
+      codCliente: customerProfile?.cod_cliente || "",
+      vend: customerProfile?.vend || "",
+      condicionPago: getPaymentMethodText(),
+      condicionPagoCode: getPaymentMethodCode(),
+      sucursalEntrega: deliveryChoice.label || deliveryChoice.slot || "",
+      clienteNuevo: clienteNuevoValue,
+      // Retira: día y franja que eligió el cliente. Se leen de _retiroSel, que
+      // está declarada en ESTA función (ver la nota de su declaración).
+      // snake_case a propósito: son las mismas claves que usa LK y las lee el
+      // mismo consumidor (Gestión Virgilio).
+      retiro_fecha: _retiroSel.fecha || null,
+      retiro_franja: _retiroSel.franja || null,
+      // Datos del customer para la Leyenda 2 (D / LC / PP)
+      deuda: Number(customerProfile?.debt || 0),
+      payment_term: customerProfile?.payment_term != null ? Number(customerProfile.payment_term) : null,
+      credit_limit: customerProfile?.credit_limit != null ? Number(customerProfile.credit_limit) : null,
+      order_total: Number(t.finalTotal || 0),
+      items: _buildItemsPayload(null).map((it) => ({
+        cod_art: it.cod_art,
+        cajas: it.cajas,
+        uxb: it.uxb,
+      })),
+    };
+
     const orderPayload = {
       auth_user_id: currentSession.user.id,
       customer_id: customerProfile.id,
@@ -5694,9 +5727,10 @@ async function submitOrder() {
       web_discount: (isAdmin && !hasVendorSelection()) ? 0 : WEB_ORDER_DISCOUNT,
       subtotal: Number(t.subtotal || 0),
       total: Number(t.finalTotal || 0),
+      sheets_payload: sheetsPayload,
     };
 
-    const resHead = await withTimeout(
+    let resHead = await withTimeout(
       supabaseClient
         .from("orders")
         .insert(orderPayload)
@@ -5705,6 +5739,26 @@ async function submitOrder() {
       60000,
       "Supabase insert orders",
     );
+
+    // Resguardo: si el insert CON ficha fuera rechazado (por ejemplo si los
+    // permisos de la columna cambiaran), se reintenta sin ella antes que perder
+    // el pedido. En ese caso la ficha se guarda después, como se hacía antes, y
+    // queda el aviso en la consola. Tomar el pedido siempre vale más que
+    // tomarlo completo.
+    let fichaEnElInsert = true;
+    if (resHead.error) {
+      console.warn(
+        "El insert con sheets_payload fue rechazado; reintento sin la ficha:",
+        resHead.error,
+      );
+      fichaEnElInsert = false;
+      const { sheets_payload: _descartado, ...sinFicha } = orderPayload;
+      resHead = await withTimeout(
+        supabaseClient.from("orders").insert(sinFicha).select("id").single(),
+        60000,
+        "Supabase insert orders (sin ficha)",
+      );
+    }
 
     const orderRow = resHead.data;
     const orderErr = resHead.error;
@@ -5767,51 +5821,23 @@ async function submitOrder() {
       dtoVol: Number(getDtoVol() || 0),
     };
 
-    // ---- Armar Sheets payload ANTES de resetear UI ----
-    // Incluye deuda/payment_term/credit_limit/order_total para que el
-    // Apps Script pueda armar la "Leyenda 2" (col J) con la cadena
-    // D OK/X - LC OK/X - PP N. Sin estos campos quedaría siempre como
-    // "D OK - LC OK - PP Null".
-    const sheetsPayload = {
-      orderNumber: orderId,
-      codCliente: customerProfile?.cod_cliente || "",
-      vend: customerProfile?.vend || "",
-      condicionPago: getPaymentMethodText(),
-      condicionPagoCode: getPaymentMethodCode(),
-      sucursalEntrega: lastConfirmedOrder.sucursalEntrega,
-      clienteNuevo: clienteNuevoValue,
-      // Retira: día y franja que eligió el cliente. Se leen ACÁ, en la misma
-      // función que arma el payload — nunca de otra función. En LK esa variable
-      // se tomaba prestada de submitOrder() y salta un ReferenceError después
-      // de que el pedido ya quedó grabado: del 11/09 al 14/09 dejó 6 pedidos
-      // invisibles para Gestión. Las claves van en snake_case aunque el resto
-      // del payload sea camelCase: son las mismas que usa LK y las lee el mismo
-      // consumidor (Gestión Virgilio), así que conviene una sola grafía.
-      retiro_fecha: _retiroSel.fecha || null,
-      retiro_franja: _retiroSel.franja || null,
-      // Datos del customer para la Leyenda 2 (D / LC / PP)
-      deuda: Number(customerProfile?.debt || 0),
-      payment_term: customerProfile?.payment_term != null ? Number(customerProfile.payment_term) : null,
-      credit_limit: customerProfile?.credit_limit != null ? Number(customerProfile.credit_limit) : null,
-      order_total: Number(lastConfirmedOrder?.total || 0),
-      items: itemsPayload.map((it) => ({
-        cod_art: it.cod_art,
-        cajas: it.cajas,
-        uxb: it.uxb,
-      })),
-    };
+    // ---- El número de pedido, que recién ahora existe ----
+    // La ficha ya se guardó junto con el pedido (arriba, en el mismo insert).
+    // Acá sólo se le agrega el número para lo que se manda al Apps Script.
+    sheetsPayload.orderNumber = orderId;
 
-    // ---- Persistir sheets_payload en la DB (para el mail de compras desde Supabase) ----
-    // Aditivo: el pedido ya está guardado; esto solo agrega el payload en orders
-    // para que la edge function procesar-pedidos-db arme el mail sin depender del
-    // Google Sheet. No toca el envío al proxy (sigue mandando al Apps Script igual).
-    supabaseClient
-      .from("orders")
-      .update({ sheets_payload: sheetsPayload })
-      .eq("id", orderId)
-      .then(function () {}, function (err) {
-        console.warn("No se pudo persistir sheets_payload:", err);
-      });
+    // Si el insert con ficha hubiera sido rechazado, se guarda ahora —el camino
+    // viejo— para no dejar el pedido sin ella. En condiciones normales esto no
+    // corre: la ficha ya está en la base desde que se creó el pedido.
+    if (!fichaEnElInsert) {
+      supabaseClient
+        .from("orders")
+        .update({ sheets_payload: sheetsPayload })
+        .eq("id", orderId)
+        .then(function () {}, function (err) {
+          console.warn("No se pudo persistir sheets_payload:", err);
+        });
+    }
 
     // ---- Armar Entregas payload (PPP + Base Picking) ANTES de resetear UI ----
     var entregasPayload = {
