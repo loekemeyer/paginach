@@ -1,0 +1,64 @@
+# ¿Lo que está en el repo llegó al sitio de los clientes?
+#
+# POR QUÉ EXISTE. chefsrl.com se sube A MANO por SolidCP. Hasta ahora nada
+# avisaba si un cambio se pusheaba pero no se subía: el repo decía una versión y
+# el cliente veía otra, y eso sólo se descubría cuando algo fallaba. En LK costó
+# caro el 14/09 — se corrigió un bug que dejaba pedidos sin confirmar, se
+# pusheó, y los clientes siguieron horas con la versión anterior.
+#
+# QUÉ HACE. Compara APP_VERSION de version.js con lo que publica el sitio. Si no
+# coinciden, el workflow se pone en rojo: hay algo pusheado que los clientes
+# todavía no tienen. No sube nada ni necesita credenciales.
+#
+# Corre con cada push a main y también a mano (Actions → Run workflow).
+
+name: verificar publicado (chefsrl.com)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comparar la versión del repo con la publicada
+        env:
+          SITIO: https://www.chefsrl.com
+        run: |
+          set -euo pipefail
+          esperada=$(grep -oP 'APP_VERSION\s*=\s*"\K[0-9.]+' version.js)
+          echo "En el repo: $esperada"
+
+          # Se reintenta un rato: después de subir por SolidCP puede tardar en
+          # verse, y el navegador o un cache intermedio pueden servir lo viejo.
+          for i in 1 2 3 4 5 6; do
+            publicada=$(curl -fsS "$SITIO/version.js?nocache=$RANDOM" \
+                        | grep -oP 'APP_VERSION\s*=\s*"\K[0-9.]+' || true)
+            echo "Intento $i — en ${SITIO#https://}: ${publicada:-(no se pudo leer)}"
+            if [ "${publicada:-}" = "$esperada" ]; then
+              echo "OK: los clientes ya tienen la v$esperada." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          {
+            echo "### El sitio NO tiene la versión del repo"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| En el repo | \`$esperada\` |"
+            echo "| En ${SITIO#https://} | \`${publicada:-no se pudo leer}\` |"
+            echo ""
+            echo "Falta subir los archivos por SolidCP. El número del pie de la"
+            echo "página es la única prueba de que un cambio llegó a los clientes."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::El sitio publica ${publicada:-desconocida} y el repo está en $esperada."
+          exit 1
