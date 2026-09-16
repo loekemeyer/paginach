@@ -2730,7 +2730,7 @@
       : "(sin cliente)";
 
     var addLSuffix =
-      state.superKey === "cencosud" || state.superKey === "dorinka";
+      state.superKey === "cencosud";
 
     // Calcular totales
     var totalCajas = 0;
@@ -2935,7 +2935,7 @@
 
     try {
       var isChef = isChefSuper(state.superKey);
-      var addLSuffix = isChef;
+      var addLSuffix = (state.superKey === "cencosud"); // Dorinka NO lleva L (son art. de Chef); solo Cencosud
       // Mapeo de códigos especiales por supermercado.
       // Coto: artículo 505 se envía como 505I a la sheet Pedidos Web (y PPP),
       // NO afecta a la web ni a otros supermercados — solo Coto en PDF Krikos.
