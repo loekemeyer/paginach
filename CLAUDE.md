@@ -88,6 +88,72 @@ que se responden en el momento; sólo para pedidos que implican hacer algo.
    pedirlo cada vez. Fuente canónica del bloque: `CLAUDE.md` de `loekemeyer/pagina-LK-copia`.
 
 
+## ⚠⚠⚠ REGLA: TRAER SIEMPRE LA DEFINICIÓN VIVA, Y USAR SIEMPRE LA TABLA VIGENTE
+
+**Luis, 2026-09-17, después de que esto costara 4 tandas con el picking duplicado en Gestión
+Virgilio:** *"QUE SIEMPRE TRAIGAN DEFINICIONES VIVAS Y ACTUALIZADAS ASÍ COMO TAMBIÉN QUE USEN LAS
+TABLAS VIGENTES."*
+
+**Vale para TODOS los repos** (LK, Chef, Gestión Virgilio, Planify y cualquiera nuevo: copiar
+este bloque al `CLAUDE.md` del repo nuevo). Son dos reglas con la misma raíz: **lo que uno tiene
+en la cabeza no es lo que está corriendo.**
+
+### 1. Antes de `CREATE OR REPLACE`, traer la definición VIVA
+
+**Nunca** partir de una copia propia, de un archivo `.sql` del repo, ni de lo que se leyó hace un
+rato en la misma charla. **Varias sesiones de Claude tocan los mismos objetos al mismo tiempo**, y
+un `CREATE OR REPLACE` pisa el cuerpo entero sin decir una palabra. Y los `.sql` del repo **no se
+ejecutan solos**: se corren a mano, así que un cambio hecho en el editor de Supabase y no volcado
+los deja desfasados. **La base es la fuente de verdad, el archivo es documentación.**
+
+```sql
+-- SIEMPRE esto, justo antes de escribir:
+select pg_get_functiondef('public.<la funcion>'::regprocedure);
+select pg_get_viewdef('public.<la vista>'::regclass, true);
+-- y para una vista, ademas, las opciones (o te comes el security_invoker):
+select relname, reloptions from pg_class where oid = 'public.<la vista>'::regclass;
+```
+
+Se le agrega el cambio **encima de eso**, y recién ahí se escribe. Para comparar un `.sql` del
+repo contra lo que corre de verdad, el md5 del cuerpo normalizado:
+
+```sql
+select md5(regexp_replace(regexp_replace(regexp_replace(
+         prosrc,'/\*.*?\*/','','gs'),'--[^\n]*','','g'),'\s','','g'))
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname='public' and p.proname='<la funcion>';
+```
+
+**Lo que costó no hacerlo (problema 390, 17/09):** dos sesiones editaron la misma función el mismo
+día. La segunda partió de una copia anterior y borró una regla de negocio de la primera sin que
+nada avisara. Se duplicó el picking entero de 4 tandas: +287 cajas fantasma y −265 en góndola.
+
+### 2. Y después PROBARLO, no leerlo
+
+Leer la función que uno acaba de escribir no prueba nada: la que corre puede ser otra. Se hace una
+escritura de verdad contra la tabla real, se mira el resultado y se borra. El diagnóstico del
+problema 390 salió así, en dos líneas, después de un rato largo de leer código sin entender nada.
+
+### 3. La tabla vigente, no la que uno conoce
+
+Antes de escribir una consulta contra una tabla que uno no tocó nunca, **mirar cuándo se escribió
+por última vez**. Hay tablas viejas conviviendo con las vivas, con el mismo contenido aparente, y
+leer la que no es da respuestas que suenan bien y están mal:
+
+```sql
+select c.relname, s.n_tup_ins + s.n_tup_upd escrituras, s.last_autoanalyze
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  left join pg_stat_user_tables s on s.relid = c.oid
+ where n.nspname = 'public' and c.relkind = 'r' and c.relname ilike '%<lo que busques>%';
+-- y si la tabla tiene columna de fecha, la prueba que vale: select max(<fecha>) from ...
+```
+
+En **Gestión Virgilio** eso está resuelto con dos centinelas —`gv_fuentes_lugares` (qué tabla está
+viva) y `gv_tablas_viejas_en_uso` (qué objeto sigue leyendo una congelada)— más
+`gv_reglas_perdidas`, que avisa si a una función le borraron una regla. Si este repo llega a tener
+el mismo problema, se copia ese patrón: una tabla `*_Reglas_Centinela` con
+`(objeto, patrón que tiene que estar, regla)` y una vista que lista lo que falta.
+
 ## ⚠ REGLA: NO preguntar — razonar primero y resolver
 
 **Dueño (2026-09-11): *"no me tenés que preguntar, tenés que razonar primero"*.** Vale para
