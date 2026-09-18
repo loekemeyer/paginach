@@ -438,3 +438,63 @@ select n.nspname, c.relname
    and has_table_privilege('anon', c.oid, 'SELECT')
    and n.nspname not in ('pg_catalog','information_schema','pg_toast');
 ```
+
+## ⚠ REGLA: por qué Claude pide permiso para TODO — y cómo se apaga
+
+**Vale para TODOS los repos** (copiar este bloque y el archivo `scripts/claude-permisos.sh` al
+repo nuevo, igual que el bloque de Planify). Thomas, 2026-09-18: *"otras sesiones están pidiendo
+muchísimos permisos para editar todo y antes no pasaba"*. Son **dos** cosas distintas, y hacen
+falta las dos: arreglar una sola no cambia nada.
+
+### 1. Un `hooks` mal formado tira el `.claude/settings.json` ENTERO, sin avisar
+
+El formato viejo —`{"matcher":"", "command":"..."}`— ya no vale. Hoy va con el array `hooks`
+adentro:
+
+```jsonc
+"hooks": { "PreToolUse": [ { "matcher": "",
+  "hooks": [ { "type": "command", "command": "echo hola" } ] } ] }
+```
+
+Con el formato viejo Claude Code **descarta el archivo completo**, así que la `permissions.allow`
+(Read, Edit, Write, git…) deja de existir y **todo vuelve a preguntar**. No tira ningún error:
+simplemente no pasa nada. Así estuvo este repo desde el commit `542ab7e` (16/09), y de yapa el
+hook de caveman nunca corrió ni una vez.
+
+**Cómo se ve la diferencia** (es el chequeo, no hay otro):
+
+```bash
+echo 'deci solo ok' | claude --print 2>&1 | grep -i ignoring
+# aparece "Ignoring N permissions.allow entries…"  → el archivo SE LEE (bien)
+# no aparece NADA                                  → el archivo se descartó (mal)
+```
+
+### 2. Y aunque se lea, un workspace **sin trust** ignora esa allow list igual
+
+El mensaje lo dice con todas las letras: *"Ignoring 36 permissions.allow entries from
+.claude/settings.json: this workspace has not been trusted"*. El trust vive **fuera del repo**, en
+`~/.claude.json` → `projects["<dir>"].hasTrustDialogAccepted`. En los contenedores remotos de
+Claude Code web ese archivo **nace vacío en cada sesión**, así que ningún repo está confiado nunca.
+
+**Lo que SÍ funciona sin trust: los permisos a nivel USUARIO** (`~/.claude/settings.json`).
+Medido el 18/09: en un workspace no confiado, con la allow list del repo ignorada, la del usuario
+se aplica igual. **Por eso ése es el lugar que arregla todos los repos de una.**
+
+### Lo que hace `scripts/claude-permisos.sh`
+
+Las dos cosas, y es idempotente: **mergea** (nunca pisa) una allow list de lectura/edición en
+`~/.claude/settings.json` y marca el workspace como confiado en `~/.claude.json`. `git push`,
+`curl`, `rm` y el SQL de Supabase **quedan afuera a propósito**: ésos tienen que seguir preguntando.
+
+⚠ **Hay que correrlo ANTES de que arranque Claude.** Los permisos se leen al arrancar la sesión:
+el hook `SessionStart` que lo llama recién hace efecto en la sesión **siguiente** (medido — la
+sesión que lo dispara sigue pidiendo permiso). O sea:
+
+| Dónde | Qué hacer | Cuándo aplica |
+|---|---|---|
+| **Claude Code web** (lo que usamos) | pegar `bash scripts/claude-permisos.sh` en el **setup script del entorno** (lo hace el dueño, en la web) | desde la sesión siguiente, en **todos** los repos |
+| **Local** | correrlo una vez a mano, o aceptar el diálogo de trust | queda para siempre en esa máquina |
+| Hook `SessionStart` (ya está en `.claude/settings.json`) | nada | de la 2ª sesión del contenedor en adelante |
+
+**Chequeo de que quedó bien**, en el repo: la 1ª corrida de arriba muestra el `Ignoring`, la 2ª
+ya no muestra nada y edita sin preguntar.
