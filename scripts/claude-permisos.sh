@@ -23,6 +23,11 @@
 # arrancar la sesion, asi que correrlo desde un hook SessionStart recien tiene
 # efecto en la sesion SIGUIENTE (medido).
 #
+# ⚠ Y de las dos, la que aguanta es (1). ~/.claude.json es el archivo que Claude
+# Code se guarda para si y reescribe al cerrar la sesion desde lo que tenia en
+# memoria al arrancar, asi que la sesion que dispara el hook puede pisar el trust
+# al salir. ~/.claude/settings.json no lo toca nadie: ese es el que vale.
+#
 # Uso:  bash scripts/claude-permisos.sh
 # ---------------------------------------------------------------------------
 set -u

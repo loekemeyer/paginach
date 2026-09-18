@@ -496,5 +496,13 @@ sesión que lo dispara sigue pidiendo permiso). O sea:
 | **Local** | correrlo una vez a mano, o aceptar el diálogo de trust | queda para siempre en esa máquina |
 | Hook `SessionStart` (ya está en `.claude/settings.json`) | nada | de la 2ª sesión del contenedor en adelante |
 
+⚠ **De las dos cosas que hace el script, la que aguanta es la de los permisos de usuario.** El
+trust lo escribe en `~/.claude.json`, que es **el archivo que Claude Code se guarda para sí** y
+reescribe al cerrar la sesión desde lo que tenía en memoria al arrancar: o sea que la sesión que
+disparó el hook puede pisarlo al salir (medido el 18/09 — en un repo quedó, en otro se borró).
+`~/.claude/settings.json` no lo toca nadie, así que **ése es el que saca los permisos de encima**,
+y no necesita trust. Por eso el lugar donde el script tiene que correr es el setup del entorno.
+
 **Chequeo de que quedó bien**, en el repo: la 1ª corrida de arriba muestra el `Ignoring`, la 2ª
-ya no muestra nada y edita sin preguntar.
+ya no lo muestra (si el trust aguantó) y, con o sin trust, lee y edita **sin preguntar**.
+
