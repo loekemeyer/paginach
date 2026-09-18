@@ -6,6 +6,25 @@ apunta al **proyecto Supabase de Chef** (`nkhzocgdpwtgrmwleihr`), distinto del d
 (`kwkclwhmoygunqmlegrg`). Las numeraciones de cliente y de pedido de Chef y LK son
 **independientes**: el mismo número es otro negocio en cada empresa.
 
+## Módulo Consulta de clientes (`consulta.html`)
+
+Gemelo del de Loekemeyer (`pagina-LK-copia`, misma pantalla y mismo código). Solo lectura:
+se entra con **CUIT + clave** (esquema sintético `<dígitos>@cuit.loekemeyer`, el mismo de las
+dos páginas), se elige un cliente por razón social / CUIT / código, y aparecen **dos botones**:
+*Artículos que compra* y *Artículos que NO compra y debería*.
+
+- Quién entra lo decide la tabla **`consulta_usuarios`** de ESTE proyecto, no la de LK: son dos
+  proyectos de Supabase distintos y no comparten sesión ni usuarios, aunque el CUIT y la clave
+  sean los mismos.
+- Las cinco RPC están en **`sql/consulta_clientes.sql`** y hay que correrlas **a mano** en el SQL
+  editor de Chef. El archivo es **autocontenido**: esta base no tiene `v_item_precio`,
+  `item_precios`, `sales_excluded_items`, `ficha_norm` ni `precios_super`, así que valoriza con
+  `products` y trae su propia `consulta_norm()`. Las diferencias están listadas arriba de todo
+  en ese archivo.
+- ⚠ **"Última compra" NO es `max(invoice_date)`**: hay líneas con `boxes = 0` y negativas
+  (devoluciones) que corren la fecha. Va con `max(invoice_date) FILTER (WHERE boxes > 0)`.
+- Al tocar este módulo, mirar también el de LK: son el mismo código.
+
 ## ⚠ REGLA: preguntar QUIÉN habla y dejar cada pedido como tarea en su Planify
 
 **Vale para TODOS los repos** (LK, Gestión Virgilio, Planify y cualquiera nuevo: copiar este
