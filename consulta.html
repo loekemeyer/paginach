@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Consulta de clientes · Chef SRL</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Supabase UMD -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <!-- xlsx-js-style: mismo fork de SheetJS que usa el panel admin -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/consulta.css" />
+    <link rel="icon" type="image/png" href="img/favicon.png" />
+  </head>
+
+  <body>
+    <!-- ================= LOGIN ================= -->
+    <div class="login-wrap" id="loginWrap">
+      <div class="login-card">
+        <img src="img/logo.png" alt="Chef" class="login-logo" />
+        <h1>Consulta de clientes</h1>
+        <p class="login-sub">
+          Qué te compran y qué no te compran. Ingresá con tu CUIT y tu clave.
+        </p>
+
+        <label for="cuitInput">CUIT</label>
+        <input
+          id="cuitInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="username"
+          placeholder="20-11489670-6"
+        />
+
+        <label for="passInput">Clave</label>
+        <input
+          id="passInput"
+          type="password"
+          autocomplete="current-password"
+          placeholder="••••••"
+        />
+
+        <button id="loginBtn" class="btn-primary">Entrar</button>
+        <div class="login-error" id="loginError"></div>
+      </div>
+    </div>
+
+    <!-- ================= APP ================= -->
+    <div class="app" id="app" hidden>
+      <header class="topbar">
+        <div class="topbar-left">
+          <img src="img/logo.png" alt="Chef" class="topbar-logo" />
+          <div>
+            <div class="topbar-title">Consulta de clientes</div>
+            <div class="topbar-sub" id="topbarUser"></div>
+          </div>
+        </div>
+        <button id="logoutBtn" class="btn-ghost">Salir</button>
+      </header>
+
+      <!-- Buscador -->
+      <section class="card">
+        <label class="buscador-label" for="buscarInput">
+          Buscá el cliente por razón social, CUIT o código
+        </label>
+        <div class="buscador-row">
+          <input
+            id="buscarInput"
+            type="text"
+            placeholder="Ej: Relca · 30-71585813-0 · 2444"
+            autocomplete="off"
+          />
+          <span class="buscador-hint" id="buscarHint"></span>
+        </div>
+        <div id="resultados" class="resultados"></div>
+      </section>
+
+      <!-- Cliente elegido: primero los dos botones, nada mas -->
+      <section class="card" id="fichaCard" hidden>
+        <div class="ficha-head">
+          <div>
+            <div class="ficha-nombre" id="fichaNombre"></div>
+            <div class="ficha-meta" id="fichaMeta"></div>
+          </div>
+          <button class="btn-ghost" id="cerrarFicha">Cambiar de cliente</button>
+        </div>
+
+        <!-- Paso 2: que quiere ver -->
+        <div class="elegir" id="elegir">
+          <button class="big-btn" id="btnVerCompra">
+            <span class="big-btn-tit">Artículos que compra</span>
+            <span class="big-btn-sub">Lo que le vendemos hoy, con cajas y facturación</span>
+          </button>
+          <button class="big-btn big-btn--alerta" id="btnVerFalta">
+            <span class="big-btn-tit">Artículos que NO compra</span>
+            <span class="big-btn-sub">Lo que compra el resto de los clientes y él no</span>
+          </button>
+        </div>
+
+        <!-- Paso 3: la tabla que eligio -->
+        <div class="vista" id="vista" hidden>
+          <div class="vista-head">
+            <button class="btn-ghost" id="volverBtn">← Volver</button>
+            <span class="vista-tit" id="vistaTit"></span>
+          </div>
+
+          <div class="tabla-toolbar">
+            <input
+              id="filtroInput"
+              type="text"
+              class="filtro-input"
+              placeholder="Filtrar por código o artículo…"
+              autocomplete="off"
+            />
+            <label class="chk" id="chkAntesWrap">
+              <input type="checkbox" id="chkAntes" />
+              Solo lo que compraba antes y dejó
+            </label>
+            <button class="btn-excel" id="btnExcel">Descargar Excel</button>
+          </div>
+
+          <div class="tabla-wrap">
+            <table class="tabla" id="tabla">
+              <thead id="tablaHead"></thead>
+              <tbody id="tablaBody"></tbody>
+            </table>
+          </div>
+          <div class="tabla-pie" id="tablaPie"></div>
+        </div>
+      </section>
+
+      <footer class="pie">
+        Chef SRL · <span data-app-version></span>
+      </footer>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="version.js"></script>
+    <script src="consulta.js"></script>
+  </body>
+</html>

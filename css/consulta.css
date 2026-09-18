@@ -1,0 +1,377 @@
+/* =====================================================================
+   Modulo "Consulta de clientes" (consulta.html)
+   Paleta y radios calcados de css/historial.css de Chef (navy, no el rojo LK).
+   ===================================================================== */
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --border-light: #f0f1f3;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --accent: #111827;
+  --accent-hover: #1f2937;
+  --brand: #0b315d;
+  --brand-soft: #e8eef7;
+  --ok: #1d6f42;
+  --radius: 18px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(15, 23, 42, 0.08);
+  --row-hover: #f8f9fb;
+  --stripe: #fafbfc;
+}
+
+* { box-sizing: border-box; }
+
+/* .login-wrap y .app usan display:flex/block propios, que le ganan al atributo
+   [hidden] del HTML. Sin esto la pantalla de login sigue ocupando lugar
+   despues de entrar. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #e8eef7 0%, transparent 60%),
+    radial-gradient(900px 500px at 95% 110%, #e8f0ff 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ===== LOGIN ===== */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.login-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 34px 30px 28px;
+  width: 100%;
+  max-width: 380px;
+  position: relative;
+  overflow: hidden;
+}
+.login-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--brand) 0%, #1c5da8 50%, var(--brand) 100%);
+}
+.login-logo { height: 34px; display: block; margin-bottom: 18px; }
+.login-card h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.02em; }
+.login-sub { font-size: 13px; color: var(--muted); margin: 0 0 22px; line-height: 1.5; }
+.login-card label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.login-card input {
+  width: 100%;
+  padding: 11px 13px;
+  font-size: 15px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  background: #fcfcfd;
+  color: var(--text);
+}
+.login-card input:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: #fff;
+}
+.login-error {
+  color: var(--brand);
+  font-size: 13px;
+  margin-top: 12px;
+  min-height: 18px;
+  line-height: 1.45;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.55; cursor: default; }
+
+/* ===== APP ===== */
+.app { padding: 20px 16px 40px; max-width: 1500px; margin: 0 auto; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.topbar-logo { height: 30px; }
+.topbar-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+.topbar-sub { font-size: 12px; color: var(--muted); }
+
+.btn-ghost {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-ghost:hover { background: var(--row-hover); }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+
+/* ===== BUSCADOR ===== */
+.buscador-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.buscador-row { display: flex; align-items: center; gap: 12px; }
+#buscarInput {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fcfcfd;
+  color: var(--text);
+}
+#buscarInput:focus { outline: none; border-color: var(--brand); background: #fff; }
+.buscador-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.resultados { margin-top: 10px; }
+.res-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+}
+.res-item:hover { background: var(--row-hover); }
+.res-nombre { font-weight: 600; font-size: 14px; }
+.res-cod {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand);
+  background: var(--brand-soft);
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.res-meta { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.res-vacio { font-size: 13px; color: var(--muted); padding: 10px 2px; }
+
+/* ===== FICHA ===== */
+.ficha-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ficha-nombre { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.ficha-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* ===== PASO 2: los dos botones ===== */
+/* Es TODA la pantalla despues de elegir el cliente: dos botones y nada mas.
+   Pedido de Thomas (18/09/2026): "tiene que ser muy simple". */
+.elegir {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 4px;
+}
+.big-btn {
+  display: block;
+  text-align: left;
+  padding: 22px 22px;
+  font-family: inherit;
+  background: #fcfcfd;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.12s;
+}
+.big-btn:hover { background: #fff; transform: translateY(-1px); }
+.big-btn--alerta { border-left-color: var(--brand); }
+.big-btn-tit {
+  display: block;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.big-btn--alerta .big-btn-tit { color: var(--brand); }
+.big-btn-sub {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* ===== PASO 3: la tabla ===== */
+.vista-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.vista-tit { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+
+/* ===== TOOLBAR ===== */
+.tabla-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.filtro-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fcfcfd;
+  color: var(--text);
+}
+.filtro-input:focus { outline: none; border-color: var(--brand); background: #fff; }
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-excel {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: var(--ok);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-excel:hover { filter: brightness(1.08); }
+
+/* ===== TABLA (compacta: ancho segun dato, sin relleno) ===== */
+.tabla-wrap { overflow-x: auto; }
+.tabla {
+  width: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tabla th {
+  position: sticky;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 1;
+}
+.tabla td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.tabla tbody tr:nth-child(even) { background: var(--stripe); }
+.tabla tbody tr:hover { background: var(--row-hover); }
+.tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla .art { white-space: normal; min-width: 190px; }
+.tabla .cod { font-weight: 700; color: var(--brand); }
+.tabla-foto {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 5px;
+  background: #fff;
+  display: block;
+}
+.pct-fuerte { font-weight: 800; }
+.dejo {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--brand);
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.var-sube { color: var(--ok); font-weight: 700; }
+.var-baja { color: var(--brand); font-weight: 700; }
+.var-nuevo { color: var(--ok); font-weight: 700; }
+.tabla-pie { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+.pie { text-align: center; font-size: 11px; color: var(--muted); margin-top: 24px; }
+
+/* ===== MOBILE ===== */
+@media (max-width: 640px) {
+  .app { padding: 14px 10px 30px; }
+  .card { padding: 16px 14px; border-radius: 14px; }
+  .ficha-head { flex-direction: column; align-items: stretch; }
+  .buscador-row { flex-direction: column; align-items: stretch; }
+  .buscador-hint { white-space: normal; }
+  .res-item { flex-wrap: wrap; }
+  .res-meta { margin-left: 0; width: 100%; white-space: normal; }
+  .elegir { grid-template-columns: 1fr; }
+  .big-btn { padding: 18px 16px; }
+  .tabla-foto { display: none; }
+}
