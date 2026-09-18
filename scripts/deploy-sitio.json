@@ -1,0 +1,4 @@
+{
+  "sitio": "https://www.chefsrl.com",
+  "_nota": "Que sitio publica scripts/deploy-iis.ps1 y la skill /publicar-sitio. Va versionado a proposito: es el dominio publico, no hay nada secreto. Las credenciales de FTP viven en deploy-iis.local.json, que NO entra al repo."
+}

@@ -1,3 +1,5 @@
 node_modules/
 test-results/
 screenshot.mjs
+scripts/deploy-iis.local.json
+deploy_*.zip
